@@ -24,6 +24,8 @@ freely available at: https://cds.climate.copernicus.eu/cdsapp#!/search?type=data
    * paper: https://doi.org/10.1175/JHM-D-16-0054.1
 * Daniele Nerini, 2020: Probabilistic Deep Learning for Postprocessing Wind Forecasts in Complex Terrain
    * presentation: https://vimeo.com/465719202  
-* Amato et al., 2020: A novel framework for spatio-temporal prediction of environmental data using deep learning.
+* Amato et al., 2020: A novel framework for spatio-temporal prediction of environmental data using deep learning
    * paper: https://doi.org/10.1038/s41598-020-79148-7
    * code: https://github.com/federhub/ST_DeepLearning
+* Robert er al., 2012: Spatial prediction of monthly wind speeds in complex terrain with adaptive general regression neural networks
+   * paper:  https://doi.org/10.1002/joc.3550
