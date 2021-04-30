@@ -1,0 +1,14 @@
+name: downscale_dev
+channels:
+  - conda-forge
+dependencies:
+  - jupyterlab=3.0.14
+  - matplotlib=3.4.1
+  - numpy=1.20.2
+  - pandas=1.2.4
+  - python=3.9.2
+  - scipy=1.6.2
+  - xarray=0.17.0
+  - pip:
+    - cdsapi==0.5.1
+prefix: /home/steidani/miniconda3/envs/downscale_dev
