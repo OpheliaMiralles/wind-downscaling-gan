@@ -1,4 +1,6 @@
+import pathlib
 import re
+from io import StringIO
 from typing import Union, Tuple
 
 import cartopy
@@ -13,6 +15,25 @@ class HigherResPlateCarree(ccrs.PlateCarree):
     @property
     def threshold(self):
         return super().threshold / 100
+
+
+def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
+    s = re.sub(' {2,}', '\t', path_to_file.read_text())
+    stations = pd.read_csv(StringIO(s), sep='\t')
+    stations = stations.reset_index()
+    stations = stations.rename(
+        columns={'  ': 'station', 'stn': 'station', 'Parameter': 'data_source', 'Source de donnÈes': 'lon/lat',
+                 'Longitude/Latitude': 'coordinates_km', 'CoordonnÈes [km] Altitude [m]': 'altitude_m'})
+    stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
+        x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])
+    stations['lon'] = stations['lon'].apply(
+        lambda x: float(x.split('/')[0].split('d')[0]) + float(x.split('/')[0].replace("'", '').split('d')[-1]) / 60)
+    stations['lat'] = stations['lat'].apply(
+        lambda x: float(x.split('/')[1].split('d')[0]) + float(x.split('/')[1].replace("'", '').split('d')[-1]) / 60)
+    stations['x_km'] = stations['x_km'].apply(lambda x: float(x.split('/')[0]))
+    stations['y_km'] = stations['y_km'].apply(lambda x: float(x.split('/')[0]))
+    stations = stations.drop(columns=['Nom', 'lon/lat', 'coordinates_km'])
+    return stations
 
 
 def dataset_times_to_datetime(data: Dataset, times: np.ndarray):
@@ -151,7 +172,8 @@ def plot_colormap_from_dataset(data: Dataset, time_index: int, variable_str: str
                                range_values_to_display=None,
                                ax=None):
     if ax is None:
-        ax = plt.gca()
+        proj = HigherResPlateCarree()
+        ax = plt.axes(projection=proj)
     interest_time = dataset_times_to_datetime(data, data.variables['time'][time_index])
     values, longs_place, lats_place, datetimes = get_array_from_dataset(data, variable_str, range_lon, range_lat,
                                                                         time_frame=(interest_time, interest_time),
@@ -169,7 +191,8 @@ def plot_wind_components_from_dataset(data: Dataset, time_index: int, variable1_
                                       range_values_to_display=None,
                                       ax=None):
     if ax is None:
-        ax = plt.gca()
+        proj = HigherResPlateCarree()
+        ax = plt.axes(projection=proj)
     interest_time = dataset_times_to_datetime(data, data.variables['time'][time_index])
     v1, longs_place, lats_place, datetimes = get_array_from_dataset(data, variable1_str, range_lon, range_lat,
                                                                     time_frame=(interest_time, interest_time),
@@ -190,7 +213,8 @@ def plot_wind_components_from_different_datasets(d1: Dataset, d2: Dataset, time_
                                                  range_values_to_display=None,
                                                  ax=None):
     if ax is None:
-        ax = plt.gca()
+        proj = HigherResPlateCarree()
+        ax = plt.axes(projection=proj)
     interest_time = dataset_times_to_datetime(d1, d1.variables['time'][time_index])
     v1, longs_place, lats_place, datetimes = get_array_from_dataset(d1, variable1_str, range_lon, range_lat,
                                                                     time_frame=(interest_time, interest_time),
