@@ -16,14 +16,29 @@ class HigherResPlateCarree(ccrs.PlateCarree):
     def threshold(self):
         return super().threshold / 100
 
+def distance_from_coordinates(z1: Tuple, z2: Tuple):
+    lon1, lat1 = z1
+    lon2, lat2 = z2
+    # Harvestine formula
+    r = 6371  # radius of Earth (KM)
+    p = np.pi / 180
+    a = 0.5 - np.cos((lat2 - lat1) * p) / 2 + np.cos(lat1 * p) * np.cos(lat2 * p) * (
+                1 - np.cos((lon2 - lon1) * p)) / 2
+    d = 2 * r * np.arcsin(np.sqrt(a))
+    return d
 
 def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     s = re.sub(' {2,}', '\t', path_to_file.read_text())
     stations = pd.read_csv(StringIO(s), sep='\t')
     stations = stations.reset_index()
     stations = stations.rename(
-        columns={'  ': 'station', 'stn': 'station', 'Parameter': 'data_source', 'Source de donnÈes': 'lon/lat',
-                 'Longitude/Latitude': 'coordinates_km', 'CoordonnÈes [km] Altitude [m]': 'altitude_m'})
+        columns={'  ': 'station',
+                 'index': 'station',
+                 'stn': 'station_name',
+                 'Parameter': 'data_source',
+                 'Source de donnÈes': 'lon/lat',
+                 'Longitude/Latitude': 'coordinates_km',
+                 'CoordonnÈes [km] Altitude [m]': 'altitude_m'})
     stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
         x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])
     stations['lon'] = stations['lon'].apply(
@@ -31,7 +46,7 @@ def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     stations['lat'] = stations['lat'].apply(
         lambda x: float(x.split('/')[1].split('d')[0]) + float(x.split('/')[1].replace("'", '').split('d')[-1]) / 60)
     stations['x_km'] = stations['x_km'].apply(lambda x: float(x.split('/')[0]))
-    stations['y_km'] = stations['y_km'].apply(lambda x: float(x.split('/')[0]))
+    stations['y_km'] = stations['y_km'].apply(lambda x: float(x.split('/')[1]))
     stations = stations.drop(columns=['Nom', 'lon/lat', 'coordinates_km'])
     return stations
 
