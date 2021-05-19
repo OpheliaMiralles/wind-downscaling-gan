@@ -27,8 +27,24 @@ def distance_from_coordinates(z1: Tuple, z2: Tuple):
     d = 2 * r * np.arcsin(np.sqrt(a))
     return d
 
+def process_wind_variables_file_from_MeteoSwiss(path_to_file: pathlib.Path):
+    df = pd.read_csv(path_to_file, sep=';').rename(columns={"stn": 'station',
+                                                    'time': 'datetime_raw',
+                                                    'fkl010h0': "wind_speed_mps",
+                                                    'dkl010h0': "wind_direction_degrees"})
+    df = df[df["station"] != 'stn']
+    df["wind_speed_mps"] = df["wind_speed_mps"].replace('-', np.NaN).astype(float)
+    df["wind_direction_degrees"] = df["wind_direction_degrees"].replace('-', np.NaN).astype(float)
+    df = df.assign(datetime=lambda x: pd.to_datetime(x["datetime_raw"], format='%Y%m%d%H')) \
+        .assign(theta_radians=lambda x: x["wind_direction_degrees"] / 180) \
+        .assign(u10=lambda x: x["wind_speed_mps"] * np.cos(x["theta_radians"])) \
+        .assign(v10=lambda x: x["wind_speed_mps"] * np.sin(x["theta_radians"])) \
+        .assign(hour=lambda x: x["datetime_raw"].astype(str).str[-2:]) \
+        .assign(month=lambda x: x["datetime_raw"].astype(str).str[4:6])
+    return df
+
 def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
-    s = re.sub(' {2,}', '\t', path_to_file.read_text())
+    s = re.sub(' {2,}', '\t', path_to_file.read_text('latin1'))
     stations = pd.read_csv(StringIO(s), sep='\t')
     stations = stations.reset_index().drop_duplicates('index')
     if 'Name' in stations.columns:
@@ -41,9 +57,11 @@ def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
                  'stn': 'station_name',
                  'Parameter': 'data_source',
                  'Source de donnÈes': 'lon/lat',
+                 'Source de donnees': 'lon/lat',
                  'Data source': 'lon/lat',
                  'Longitude/Latitude': 'coordinates_km',
                  'CoordonnÈes [km] Altitude [m]': 'altitude_m',
+                 'Coordonnees [km] Altitude [m]': 'altitude_m',
                  'Coordinates [km] Elevation [m]': 'altitude_m'})
     stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
         x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])

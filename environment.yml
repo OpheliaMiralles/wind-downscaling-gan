@@ -15,5 +15,5 @@ dependencies:
   - pip=20.1
   - pip:
     - cdsapi==0.5.1
-    - topo-descriptors=0.1.1
+    - topo-descriptors==0.1.1
 prefix: /home/steidani/miniconda3/envs/downscale_dev
