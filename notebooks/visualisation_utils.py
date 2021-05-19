@@ -30,15 +30,21 @@ def distance_from_coordinates(z1: Tuple, z2: Tuple):
 def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     s = re.sub(' {2,}', '\t', path_to_file.read_text())
     stations = pd.read_csv(StringIO(s), sep='\t')
-    stations = stations.reset_index()
+    stations = stations.reset_index().drop_duplicates('index')
+    if 'Name' in stations.columns:
+        stations = stations.drop(columns=['Name'])
+    elif 'Nom' in stations.columns:
+        stations = stations.drop(columns=['Nom'])
     stations = stations.rename(
         columns={'  ': 'station',
                  'index': 'station',
                  'stn': 'station_name',
                  'Parameter': 'data_source',
                  'Source de donnÈes': 'lon/lat',
+                 'Data source': 'lon/lat',
                  'Longitude/Latitude': 'coordinates_km',
-                 'CoordonnÈes [km] Altitude [m]': 'altitude_m'})
+                 'CoordonnÈes [km] Altitude [m]': 'altitude_m',
+                 'Coordinates [km] Elevation [m]': 'altitude_m'})
     stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
         x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])
     stations['lon'] = stations['lon'].apply(
@@ -47,7 +53,10 @@ def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
         lambda x: float(x.split('/')[1].split('d')[0]) + float(x.split('/')[1].replace("'", '').split('d')[-1]) / 60)
     stations['x_km'] = stations['x_km'].apply(lambda x: float(x.split('/')[0]))
     stations['y_km'] = stations['y_km'].apply(lambda x: float(x.split('/')[1]))
-    stations = stations.drop(columns=['Nom', 'lon/lat', 'coordinates_km'])
+    if 'lon/lat' in stations.columns:
+        stations = stations.drop(columns=['lon/lat'])
+    if 'coordinates_km' in stations.columns:
+        stations = stations.drop(columns=['coordinates_km'])
     return stations
 
 
