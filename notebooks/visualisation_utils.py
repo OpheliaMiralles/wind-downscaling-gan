@@ -1,6 +1,7 @@
 import pathlib
 import re
 from io import StringIO
+from itertools import islice
 from typing import Union, Tuple
 
 import cartopy
@@ -17,6 +18,12 @@ class HigherResPlateCarree(ccrs.PlateCarree):
         return super().threshold / 100
 
 def distance_from_coordinates(z1: Tuple, z2: Tuple):
+    """
+
+    :param z1: tuple of longitudes for the 2 places
+    :param z2: tuple of latitudes for the 2 places
+    :return: distance between the 2 places in km
+    """
     lon1, lat1 = z1
     lon2, lat2 = z2
     # Harvestine formula
@@ -57,11 +64,13 @@ def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
                  'stn': 'station_name',
                  'Parameter': 'data_source',
                  'Source de donnÈes': 'lon/lat',
+                 'Source de données': 'lon/lat',
                  'Source de donnees': 'lon/lat',
                  'Data source': 'lon/lat',
                  'Longitude/Latitude': 'coordinates_km',
                  'CoordonnÈes [km] Altitude [m]': 'altitude_m',
                  'Coordonnees [km] Altitude [m]': 'altitude_m',
+                 'Coordonnées [km] Altitude [m]': 'altitude_m',
                  'Coordinates [km] Elevation [m]': 'altitude_m'})
     stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
         x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])

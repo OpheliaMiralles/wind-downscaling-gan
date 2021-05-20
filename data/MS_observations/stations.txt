@@ -1,0 +1,356 @@
+stn       Nom                                  Parameter        Source de données                                  Longitude/Latitude       Coordonnées [km] Altitude [m]
+COM       Acquarossa / Comprovasco             fkl010h0         MeteoSchweiz                                       8d56'/46d28'             714984/146451    575
+COM       Acquarossa / Comprovasco             dkl010h0         MeteoSchweiz                                       8d56'/46d28'             714984/146451    575
+ABO       Adelboden                            fkl010h0         MeteoSchweiz                                       7d34'/46d30'             609372/148939    1321
+ABO       Adelboden                            dkl010h0         MeteoSchweiz                                       7d34'/46d30'             609372/148939    1321
+ARH       Altenrhein                           fkl010h0         MeteoSchweiz                                       9d34'/47d29'             760386/261381    397
+ARH       Altenrhein                           dkl010h0         MeteoSchweiz                                       9d34'/47d29'             760386/261381    397
+AND       Andeer                               fkl010h0         MeteoSchweiz                                       9d26'/46d37'             752691/164038    987
+AND       Andeer                               dkl010h0         MeteoSchweiz                                       9d26'/46d37'             752691/164038    987
+ANT       Andermatt                            fkl010h0         MeteoSchweiz                                       8d35'/46d38'             687444/165044    1438
+ANT       Andermatt                            dkl010h0         MeteoSchweiz                                       8d35'/46d38'             687444/165044    1438
+ARO       Arosa                                fkl010h0         MeteoSchweiz                                       9d41'/46d48'             771030/184830    1878
+ARO       Arosa                                dkl010h0         MeteoSchweiz                                       9d41'/46d48'             771030/184830    1878
+RAG       Bad Ragaz                            fkl010h0         MeteoSchweiz                                       9d30'/47d01'             756910/209350    496
+RAG       Bad Ragaz                            dkl010h0         MeteoSchweiz                                       9d30'/47d01'             756910/209350    496
+LAT       Bergün / Latsch                      fkl010h0         MeteoSchweiz                                       9d45'/46d38'             777273/166618    1407
+LAT       Bergün / Latsch                      dkl010h0         MeteoSchweiz                                       9d45'/46d38'             777273/166618    1407
+BEZ       Beznau                               fkl010h0         MeteoSchweiz                                       8d14'/47d33'             659812/267696    325
+BEZ       Beznau                               dkl010h0         MeteoSchweiz                                       8d14'/47d33'             659812/267696    325
+BIA       Biasca                               fkl010h0         MeteoSchweiz                                       8d59'/46d20'             718550/132800    278
+BIA       Biasca                               dkl010h0         MeteoSchweiz                                       8d59'/46d20'             718550/132800    278
+BIN       Binn                                 fkl010h0         MeteoSchweiz                                       8d12'/46d22'             657996/135422    1479
+BIN       Binn                                 dkl010h0         MeteoSchweiz                                       8d12'/46d22'             657996/135422    1479
+BIZ       Bischofszell                         fkl010h0         MeteoSchweiz                                       9d16'/47d31'             737713/263612    507
+BIZ       Bischofszell                         dkl010h0         MeteoSchweiz                                       9d16'/47d31'             737713/263612    507
+BIV       Bivio                                fkl010h0         MeteoSchweiz                                       9d40'/46d28'             771281/148119    1856
+BIV       Bivio                                dkl010h0         MeteoSchweiz                                       9d40'/46d28'             771281/148119    1856
+BIE       Bière                                fkl010h0         MeteoSchweiz                                       6d21'/46d31'             515887/153210    683
+BIE       Bière                                dkl010h0         MeteoSchweiz                                       6d21'/46d31'             515887/153210    683
+BLA       Blatten, Lötschental                 fkl010h0         MeteoSchweiz                                       7d49'/46d25'             629564/141084    1538
+BLA       Blatten, Lötschental                 dkl010h0         MeteoSchweiz                                       7d49'/46d25'             629564/141084    1538
+BOL       Boltigen                             fkl010h0         MeteoSchweiz                                       7d23'/46d37'             595831/163587    820
+BOL       Boltigen                             dkl010h0         MeteoSchweiz                                       7d23'/46d37'             595831/163587    820
+BOU       Bouveret                             fkl010h0         MeteoSchweiz                                       6d51'/46d24'             555264/138175    374
+BOU       Bouveret                             dkl010h0         MeteoSchweiz                                       6d51'/46d24'             555264/138175    374
+BRZ       Brienz                               fkl010h0         MeteoSchweiz                                       8d04'/46d44'             647552/176803    567
+BRZ       Brienz                               dkl010h0         MeteoSchweiz                                       8d04'/46d44'             647552/176803    567
+BUS       Buchs / Aarau                        fkl010h0         MeteoSchweiz                                       8d05'/47d23'             648395/248369    386
+BUS       Buchs / Aarau                        dkl010h0         MeteoSchweiz                                       8d05'/47d23'             648395/248369    386
+BUF       Buffalora                            fkl010h0         MeteoSchweiz                                       10d16'/46d39'            816493/170255    1971
+BUF       Buffalora                            dkl010h0         MeteoSchweiz                                       10d16'/46d39'            816493/170255    1971
+CEV       Cevio                                fkl010h0         MeteoSchweiz                                       8d36'/46d19'             689688/130565    417
+CEV       Cevio                                dkl010h0         MeteoSchweiz                                       8d36'/46d19'             689688/130565    417
+CHZ       Cham                                 fkl010h0         MeteoSchweiz                                       8d28'/47d11'             677758/226878    442
+CHZ       Cham                                 dkl010h0         MeteoSchweiz                                       8d28'/47d11'             677758/226878    442
+CHM       Chaumont                             fkl010h0         MeteoSchweiz                                       6d59'/47d03'             565060/211006    1136
+CHM       Chaumont                             dkl010h0         MeteoSchweiz                                       6d59'/47d03'             565060/211006    1136
+CHD       Château-d'Oex                        fkl010h0         MeteoSchweiz                                       7d08'/46d29'             577040/147654    1028
+CHD       Château-d'Oex                        dkl010h0         MeteoSchweiz                                       7d08'/46d29'             577040/147654    1028
+CDM       Col des Mosses                       fkl010h0         MeteoSchweiz                                       7d06'/46d23'             573817/137852    1412
+CDM       Col des Mosses                       dkl010h0         MeteoSchweiz                                       7d06'/46d23'             573817/137852    1412
+COY       Courtelary                           fkl010h0         MeteoSchweiz                                       7d05'/47d11'             573622/225597    695
+COY       Courtelary                           dkl010h0         MeteoSchweiz                                       7d05'/47d11'             573622/225597    695
+CMA       Crap Masegn                          fkl010h0         MeteoSchweiz                                       9d11'/46d51'             732820/189380    2480
+CMA       Crap Masegn                          dkl010h0         MeteoSchweiz                                       9d11'/46d51'             732820/189380    2480
+CRM       Cressier                             fkl010h0         MeteoSchweiz                                       7d04'/47d03'             571162/210797    430
+CRM       Cressier                             dkl010h0         MeteoSchweiz                                       7d04'/47d03'             571162/210797    430
+DAV       Davos                                fkl010h0         MeteoSchweiz                                       9d51'/46d49'             783518/187458    1594
+DAV       Davos                                dkl010h0         MeteoSchweiz                                       9d51'/46d49'             783518/187458    1594
+DEM       Delémont                             fkl010h0         MeteoSchweiz                                       7d21'/47d21'             593269/244543    439
+DEM       Delémont                             dkl010h0         MeteoSchweiz                                       7d21'/47d21'             593269/244543    439
+EBK       Ebnat-Kappel                         fkl010h0         MeteoSchweiz                                       9d07'/47d16'             726347/237176    623
+EBK       Ebnat-Kappel                         dkl010h0         MeteoSchweiz                                       9d07'/47d16'             726347/237176    623
+EGH       Eggishorn                            fkl010h0         MeteoSchweiz                                       8d06'/46d26'             650279/141897    2892
+EGH       Eggishorn                            dkl010h0         MeteoSchweiz                                       8d06'/46d26'             650279/141897    2892
+EGO       Egolzwil                             fkl010h0         MeteoSchweiz                                       8d00'/47d11'             642912/225540    521
+EGO       Egolzwil                             dkl010h0         MeteoSchweiz                                       8d00'/47d11'             642912/225540    521
+EIN       Einsiedeln                           fkl010h0         MeteoSchweiz                                       8d45'/47d08'             699982/221068    910
+EIN       Einsiedeln                           dkl010h0         MeteoSchweiz                                       8d45'/47d08'             699982/221068    910
+ELM       Elm                                  fkl010h0         MeteoSchweiz                                       9d11'/46d55'             732265/198424    957
+ELM       Elm                                  dkl010h0         MeteoSchweiz                                       9d11'/46d55'             732265/198424    957
+ENG       Engelberg                            fkl010h0         MeteoSchweiz                                       8d25'/46d49'             674160/186069    1035
+ENG       Engelberg                            dkl010h0         MeteoSchweiz                                       8d25'/46d49'             674160/186069    1035
+EVI       Evionnaz                             fkl010h0         MeteoSchweiz                                       7d02'/46d11'             568197/114693    482
+EVI       Evionnaz                             dkl010h0         MeteoSchweiz                                       7d02'/46d11'             568197/114693    482
+EVO       Evolène / Villa                      fkl010h0         MeteoSchweiz                                       7d31'/46d07'             605412/106748    1825
+EVO       Evolène / Villa                      dkl010h0         MeteoSchweiz                                       7d31'/46d07'             605412/106748    1825
+FLU       Flühli, LU                           fkl010h0         MeteoSchweiz                                       8d01'/46d53'             644332/193311    939
+FLU       Flühli, LU                           dkl010h0         MeteoSchweiz                                       8d01'/46d53'             644332/193311    939
+GRA       Fribourg / Grangeneuve               fkl010h0         MeteoSchweiz                                       7d07'/46d46'             575183/180076    650
+GRA       Fribourg / Grangeneuve               dkl010h0         MeteoSchweiz                                       7d07'/46d46'             575183/180076    650
+FRU       Frutigen                             fkl010h0         MeteoSchweiz                                       7d39'/46d36'             616773/160884    756
+FRU       Frutigen                             dkl010h0         MeteoSchweiz                                       7d39'/46d36'             616773/160884    756
+GES       Gersau                               fkl010h0         MeteoSchweiz                                       8d31'/46d60'             682509/205571    521
+GES       Gersau                               dkl010h0         MeteoSchweiz                                       8d31'/46d60'             682509/205571    521
+GIH       Giswil                               fkl010h0         MeteoSchweiz                                       8d11'/46d51'             657322/188976    471
+GIH       Giswil                               dkl010h0         MeteoSchweiz                                       8d11'/46d51'             657322/188976    471
+GOR       Gornergrat                           fkl010h0         MeteoSchweiz                                       7d47'/45d59'             626900/92512     3129
+GOR       Gornergrat                           dkl010h0         MeteoSchweiz                                       7d47'/45d59'             626900/92512     3129
+GRE       Grenchen                             fkl010h0         MeteoSchweiz                                       7d25'/47d11'             598218/225349    427
+GRE       Grenchen                             dkl010h0         MeteoSchweiz                                       7d25'/47d11'             598218/225349    427
+GRH       Grimsel Hospiz                       fkl010h0         MeteoSchweiz                                       8d20'/46d34'             668583/158215    1980
+GRH       Grimsel Hospiz                       dkl010h0         MeteoSchweiz                                       8d20'/46d34'             668583/158215    1980
+GRO       Grono                                fkl010h0         MeteoSchweiz                                       9d10'/46d15'             733016/124090    323
+GRO       Grono                                dkl010h0         MeteoSchweiz                                       9d10'/46d15'             733016/124090    323
+GOS       Göschenen                            fkl010h0         MeteoSchweiz                                       8d36'/46d42'             688477/171926    950
+GOS       Göschenen                            dkl010h0         MeteoSchweiz                                       8d36'/46d42'             688477/171926    950
+HLL       Hallau                               fkl010h0         MeteoSchweiz                                       8d28'/47d42'             677456/283471    419
+HLL       Hallau                               dkl010h0         MeteoSchweiz                                       8d28'/47d42'             677456/283471    419
+HOE       Hörnli                               fkl010h0         MeteoSchweiz                                       8d56'/47d22'             713516/247756    1132
+HOE       Hörnli                               dkl010h0         MeteoSchweiz                                       8d56'/47d22'             713516/247756    1132
+KOP       Koppigen                             fkl010h0         MeteoSchweiz                                       7d36'/47d07'             612662/218664    485
+KOP       Koppigen                             dkl010h0         MeteoSchweiz                                       7d36'/47d07'             612662/218664    485
+BRL       La Brévine                           fkl010h0         MeteoSchweiz                                       6d37'/46d59'             536981/203974    1050
+BRL       La Brévine                           dkl010h0         MeteoSchweiz                                       6d37'/46d59'             536981/203974    1050
+LAG       Langnau i.E.                         fkl010h0         MeteoSchweiz                                       7d48'/46d56'             628003/198793    743
+LAG       Langnau i.E.                         dkl010h0         MeteoSchweiz                                       7d48'/46d56'             628003/198793    743
+MLS       Le Moléson                           fkl010h0         MeteoSchweiz                                       7d01'/46d33'             567718/155076    1974
+MLS       Le Moléson                           dkl010h0         MeteoSchweiz                                       7d01'/46d33'             567718/155076    1974
+LEI       Leibstadt                            fkl010h0         MeteoSchweiz                                       8d11'/47d36'             656373/272121    341
+LEI       Leibstadt                            dkl010h0         MeteoSchweiz                                       8d11'/47d36'             656373/272121    341
+ATT       Les Attelas                          fkl010h0         MeteoSchweiz                                       7d16'/46d06'             586854/105302    2734
+ATT       Les Attelas                          dkl010h0         MeteoSchweiz                                       7d16'/46d06'             586854/105302    2734
+CHB       Les Charbonnières                    fkl010h0         MeteoSchweiz                                       6d19'/46d40'             513821/169387    1045
+CHB       Les Charbonnières                    dkl010h0         MeteoSchweiz                                       6d19'/46d40'             513821/169387    1045
+DIA       Les Diablerets                       fkl010h0         MeteoSchweiz                                       7d12'/46d20'             581914/130622    2964
+DIA       Les Diablerets                       dkl010h0         MeteoSchweiz                                       7d12'/46d20'             581914/130622    2964
+MAR       Les Marécottes                       fkl010h0         MeteoSchweiz                                       7d01'/46d07'             567375/107577    990
+MAR       Les Marécottes                       dkl010h0         MeteoSchweiz                                       7d01'/46d07'             567375/107577    990
+LAE       Lägern                               fkl010h0         MeteoSchweiz                                       8d24'/47d29'             672250/259460    844
+LAE       Lägern                               dkl010h0         MeteoSchweiz                                       8d24'/47d29'             672250/259460    844
+MAS       Marsens                              fkl010h0         MeteoSchweiz                                       7d04'/46d39'             571758/167316    714
+MAS       Marsens                              dkl010h0         MeteoSchweiz                                       7d04'/46d39'             571758/167316    714
+MAH       Mathod                               fkl010h0         MeteoSchweiz                                       6d34'/46d44'             533458/176567    435
+MAH       Mathod                               dkl010h0         MeteoSchweiz                                       6d34'/46d44'             533458/176567    435
+MTR       Matro                                fkl010h0         MeteoSchweiz                                       8d55'/46d25'             714263/140943    2171
+MTR       Matro                                dkl010h0         MeteoSchweiz                                       8d55'/46d25'             714263/140943    2171
+MER       Meiringen                            fkl010h0         MeteoSchweiz                                       8d10'/46d44'             655844/175930    588
+MER       Meiringen                            dkl010h0         MeteoSchweiz                                       8d10'/46d44'             655844/175930    588
+MOB       Montagnier, Bagnes                   fkl010h0         MeteoSchweiz                                       7d14'/46d04'             583492/102189    839
+MOB       Montagnier, Bagnes                   dkl010h0         MeteoSchweiz                                       7d14'/46d04'             583492/102189    839
+GEN       Monte Generoso                       fkl010h0         MeteoSchweiz                                       9d01'/45d56'             722503/87456     1600
+GEN       Monte Generoso                       dkl010h0         MeteoSchweiz                                       9d01'/45d56'             722503/87456     1600
+MRP       Monte Rosa-Plattje                   fkl010h0         MeteoSchweiz                                       7d49'/45d57'             629149/89520     2885
+MRP       Monte Rosa-Plattje                   dkl010h0         MeteoSchweiz                                       7d49'/45d57'             629149/89520     2885
+MOA       Mosen                                fkl010h0         MeteoSchweiz                                       8d14'/47d15'             660128/232852    453
+MOA       Mosen                                dkl010h0         MeteoSchweiz                                       8d14'/47d15'             660128/232852    453
+MTE       Mottec                               fkl010h0         MeteoSchweiz                                       7d37'/46d09'             614325/110730    1580
+MTE       Mottec                               dkl010h0         MeteoSchweiz                                       7d37'/46d09'             614325/110730    1580
+MOE       Möhlin                               fkl010h0         MeteoSchweiz                                       7d53'/47d34'             633053/269147    343
+MOE       Möhlin                               dkl010h0         MeteoSchweiz                                       7d53'/47d34'             633053/269147    343
+MUB       Mühleberg                            fkl010h0         MeteoSchweiz                                       7d17'/46d58'             587792/202479    479
+MUB       Mühleberg                            dkl010h0         MeteoSchweiz                                       7d17'/46d58'             587792/202479    479
+NAS       Naluns / Schlivera                   fkl010h0         MeteoSchweiz                                       10d16'/46d49'            815374/188987    2380
+NAS       Naluns / Schlivera                   dkl010h0         MeteoSchweiz                                       10d16'/46d49'            815374/188987    2380
+OBR       Oberriet / Kriessern                 fkl010h0         MeteoSchweiz                                       9d37'/47d23'             764170/249582    409
+OBR       Oberriet / Kriessern                 dkl010h0         MeteoSchweiz                                       9d37'/47d23'             764170/249582    409
+AEG       Oberägeri                            fkl010h0         MeteoSchweiz                                       8d36'/47d08'             688728/220956    724
+AEG       Oberägeri                            dkl010h0         MeteoSchweiz                                       8d36'/47d08'             688728/220956    724
+ORO       Oron                                 fkl010h0         MeteoSchweiz                                       6d51'/46d34'             555505/158052    828
+ORO       Oron                                 dkl010h0         MeteoSchweiz                                       6d51'/46d34'             555505/158052    828
+BEH       Passo del Bernina                    fkl010h0         MeteoSchweiz                                       10d01'/46d25'            798422/143020    2260
+BEH       Passo del Bernina                    dkl010h0         MeteoSchweiz                                       10d01'/46d25'            798422/143020    2260
+PMA       Piz Martegnas                        fkl010h0         MeteoSchweiz                                       9d32'/46d35'             760261/160570    2670
+PMA       Piz Martegnas                        dkl010h0         MeteoSchweiz                                       9d32'/46d35'             760261/160570    2670
+PLF       Plaffeien                            fkl010h0         MeteoSchweiz                                       7d16'/46d45'             586828/177406    1042
+PLF       Plaffeien                            dkl010h0         MeteoSchweiz                                       7d16'/46d45'             586828/177406    1042
+QUI       Quinten                              fkl010h0         MeteoSchweiz                                       9d13'/47d08'             734848/221278    419
+QUI       Quinten                              dkl010h0         MeteoSchweiz                                       9d13'/47d08'             734848/221278    419
+ROE       Robièi                               fkl010h0         MeteoSchweiz                                       8d31'/46d27'             682587/144091    1898
+ROE       Robièi                               dkl010h0         MeteoSchweiz                                       8d31'/46d27'             682587/144091    1898
+RUE       Rünenberg                            fkl010h0         MeteoSchweiz                                       7d53'/47d26'             633252/253845    611
+RUE       Rünenberg                            dkl010h0         MeteoSchweiz                                       7d53'/47d26'             633252/253845    611
+HAI       Salen-Reutenen                       fkl010h0         MeteoSchweiz                                       9d01'/47d39'             719099/279047    718
+HAI       Salen-Reutenen                       dkl010h0         MeteoSchweiz                                       9d01'/47d39'             719099/279047    718
+SAG       Sattel, SZ                           fkl010h0         MeteoSchweiz                                       8d38'/47d05'             690999/215145    790
+SAG       Sattel, SZ                           dkl010h0         MeteoSchweiz                                       8d38'/47d05'             690999/215145    790
+SRS       Schiers                              fkl010h0         MeteoSchweiz                                       9d40'/46d59'             769617/205125    626
+SRS       Schiers                              dkl010h0         MeteoSchweiz                                       9d40'/46d59'             769617/205125    626
+SCM       Schmerikon                           fkl010h0         MeteoSchweiz                                       8d56'/47d13'             713725/231533    408
+SCM       Schmerikon                           dkl010h0         MeteoSchweiz                                       8d56'/47d13'             713725/231533    408
+SPF       Schüpfheim                           fkl010h0         MeteoSchweiz                                       8d01'/46d57'             643683/199710    744
+SPF       Schüpfheim                           dkl010h0         MeteoSchweiz                                       8d01'/46d57'             643683/199710    744
+SIA       Segl-Maria                           fkl010h0         MeteoSchweiz                                       9d46'/46d26'             778574/144976    1804
+SIA       Segl-Maria                           dkl010h0         MeteoSchweiz                                       9d46'/46d26'             778574/144976    1804
+SIM       Simplon-Dorf                         fkl010h0         MeteoSchweiz                                       8d03'/46d12'             647683/116340    1465
+SIM       Simplon-Dorf                         dkl010h0         MeteoSchweiz                                       8d03'/46d12'             647683/116340    1465
+PRE       St-Prex                              fkl010h0         MeteoSchweiz                                       6d27'/46d29'             523549/148525    425
+PRE       St-Prex                              dkl010h0         MeteoSchweiz                                       6d27'/46d29'             523549/148525    425
+SMM       Sta. Maria, Val Müstair              fkl010h0         MeteoSchweiz                                       10d26'/46d36'            828861/165579    1386
+SMM       Sta. Maria, Val Müstair              dkl010h0         MeteoSchweiz                                       10d26'/46d36'            828861/165579    1386
+STK       Steckborn                            fkl010h0         MeteoSchweiz                                       8d59'/47d40'             715870/280916    397
+STK       Steckborn                            dkl010h0         MeteoSchweiz                                       8d59'/47d40'             715870/280916    397
+THU       Thun                                 fkl010h0         MeteoSchweiz                                       7d35'/46d45'             611200/177640    570
+THU       Thun                                 dkl010h0         MeteoSchweiz                                       7d35'/46d45'             611200/177640    570
+TIT       Titlis                               fkl010h0         MeteoSchweiz                                       8d26'/46d46'             675400/180400    3040
+TIT       Titlis                               dkl010h0         MeteoSchweiz                                       8d26'/46d46'             675400/180400    3040
+VAB       Valbella                             fkl010h0         MeteoSchweiz                                       9d33'/46d45'             761634/180385    1568
+VAB       Valbella                             dkl010h0         MeteoSchweiz                                       9d33'/46d45'             761634/180385    1568
+VLS       Vals                                 fkl010h0         MeteoSchweiz                                       9d11'/46d38'             734016/165551    1242
+VLS       Vals                                 dkl010h0         MeteoSchweiz                                       9d11'/46d38'             734016/165551    1242
+VEV       Vevey / Corseaux                     fkl010h0         MeteoSchweiz                                       6d49'/46d28'             552106/146847    405
+VEV       Vevey / Corseaux                     dkl010h0         MeteoSchweiz                                       6d49'/46d28'             552106/146847    405
+VIO       Vicosoprano                          fkl010h0         MeteoSchweiz                                       9d38'/46d21'             768485/135866    1089
+VIO       Vicosoprano                          dkl010h0         MeteoSchweiz                                       9d38'/46d21'             768485/135866    1089
+VIT       Villars-Tiercelin                    fkl010h0         MeteoSchweiz                                       6d43'/46d37'             544198/163650    859
+VIT       Villars-Tiercelin                    dkl010h0         MeteoSchweiz                                       6d43'/46d37'             544198/163650    859
+GUE       Gütsch, Andermatt                    fkl010h1         MeteoSchweiz                                       8d37'/46d39'             690050/167475    2286
+GUE       Gütsch, Andermatt                    fkl010h0         MeteoSchweiz                                       8d37'/46d39'             690050/167475    2286
+GUE       Gütsch, Andermatt                    dkl010h0         MeteoSchweiz                                       8d37'/46d39'             690050/167475    2286
+JUN       Jungfraujoch                         fkl010h1         MeteoSchweiz                                       7d59'/46d33'             641938/155287    3571
+JUN       Jungfraujoch                         fkl010h0         MeteoSchweiz                                       7d59'/46d33'             641938/155287    3571
+JUN       Jungfraujoch                         dkl010h0         MeteoSchweiz                                       7d59'/46d33'             641938/155287    3571
+PIL       Pilatus                              fkl010h1         MeteoSchweiz                                       8d15'/46d59'             661903/203410    2105
+PIL       Pilatus                              fkl010h0         MeteoSchweiz                                       8d15'/46d59'             661903/203410    2105
+PIL       Pilatus                              dkl010h0         MeteoSchweiz                                       8d15'/46d59'             661903/203410    2105
+COV       Piz Corvatsch                        fkl010h1         MeteoSchweiz                                       9d49'/46d25'             783154/143524    3294
+COV       Piz Corvatsch                        fkl010h0         MeteoSchweiz                                       9d49'/46d25'             783154/143524    3294
+COV       Piz Corvatsch                        dkl010h0         MeteoSchweiz                                       9d49'/46d25'             783154/143524    3294
+SAE       Säntis                               fkl010h1         MeteoSchweiz                                       9d21'/47d15'             744187/234920    2501
+SAE       Säntis                               fkl010h0         MeteoSchweiz                                       9d21'/47d15'             744187/234920    2501
+SAE       Säntis                               dkl010h0         MeteoSchweiz                                       9d21'/47d15'             744187/234920    2501
+WFJ       Weissfluhjoch                        fkl010h1         MeteoSchweiz                                       9d48'/46d50'             780614/189634    2691
+WFJ       Weissfluhjoch                        fkl010h0         MeteoSchweiz                                       9d48'/46d50'             780614/189634    2691
+WFJ       Weissfluhjoch                        dkl010h0         MeteoSchweiz                                       9d48'/46d50'             780614/189634    2691
+GSB       Col du Grand St-Bernard              fkl010h1         MeteoSchweiz                                       7d10'/45d52'             579192/79753     2472
+GSB       Col du Grand St-Bernard              fkl010h0         MeteoSchweiz                                       7d10'/45d52'             579192/79753     2472
+GSB       Col du Grand St-Bernard              dkl010h0         MeteoSchweiz                                       7d10'/45d52'             579192/79753     2472
+MVE       Montana                              fkl010h1         MeteoSchweiz                                       7d28'/46d18'             601709/127488    1422
+MVE       Montana                              fkl010h0         MeteoSchweiz                                       7d28'/46d18'             601709/127488    1422
+MVE       Montana                              dkl010h0         MeteoSchweiz                                       7d28'/46d18'             601709/127488    1422
+NAP       Napf                                 fkl010h1         MeteoSchweiz                                       7d56'/47d00'             638136/206078    1403
+NAP       Napf                                 fkl010h0         MeteoSchweiz                                       7d56'/47d00'             638136/206078    1403
+NAP       Napf                                 dkl010h0         MeteoSchweiz                                       7d56'/47d00'             638136/206078    1403
+SBE       S. Bernardino                        fkl010h1         MeteoSchweiz                                       9d11'/46d28'             734115/147294    1638
+SBE       S. Bernardino                        fkl010h0         MeteoSchweiz                                       9d11'/46d28'             734115/147294    1638
+SBE       S. Bernardino                        dkl010h0         MeteoSchweiz                                       9d11'/46d28'             734115/147294    1638
+ALT       Altdorf                              fkl010h1         MeteoSchweiz                                       8d37'/46d53'             690180/193564    437
+ALT       Altdorf                              fkl010h0         MeteoSchweiz                                       8d37'/46d53'             690180/193564    437
+ALT       Altdorf                              dkl010h0         MeteoSchweiz                                       8d37'/46d53'             690180/193564    437
+CHU       Chur                                 fkl010h1         MeteoSchweiz                                       9d32'/46d52'             759465/193152    556
+CHU       Chur                                 fkl010h0         MeteoSchweiz                                       9d32'/46d52'             759465/193152    556
+CHU       Chur                                 dkl010h0         MeteoSchweiz                                       9d32'/46d52'             759465/193152    556
+DIS       Disentis                             fkl010h1         MeteoSchweiz                                       8d51'/46d42'             708190/173793    1197
+DIS       Disentis                             fkl010h0         MeteoSchweiz                                       8d51'/46d42'             708190/173793    1197
+DIS       Disentis                             dkl010h0         MeteoSchweiz                                       8d51'/46d42'             708190/173793    1197
+GLA       Glarus                               fkl010h1         MeteoSchweiz                                       9d04'/47d02'             723755/210567    516
+GLA       Glarus                               fkl010h0         MeteoSchweiz                                       9d04'/47d02'             723755/210567    516
+GLA       Glarus                               dkl010h0         MeteoSchweiz                                       9d04'/47d02'             723755/210567    516
+INT       Interlaken                           fkl010h1         MeteoSchweiz                                       7d52'/46d40'             633023/169092    577
+INT       Interlaken                           fkl010h0         MeteoSchweiz                                       7d52'/46d40'             633023/169092    577
+INT       Interlaken                           dkl010h0         MeteoSchweiz                                       7d52'/46d40'             633023/169092    577
+ROB       Poschiavo / Robbia                   fkl010h1         MeteoSchweiz                                       10d04'/46d21'            801992/136248    1078
+ROB       Poschiavo / Robbia                   fkl010h0         MeteoSchweiz                                       10d04'/46d21'            801992/136248    1078
+ROB       Poschiavo / Robbia                   dkl010h0         MeteoSchweiz                                       10d04'/46d21'            801992/136248    1078
+SAM       Samedan                              fkl010h1         MeteoSchweiz                                       9d53'/46d32'             787249/155685    1708
+SAM       Samedan                              fkl010h0         MeteoSchweiz                                       9d53'/46d32'             787249/155685    1708
+SAM       Samedan                              dkl010h0         MeteoSchweiz                                       9d53'/46d32'             787249/155685    1708
+SCU       Scuol                                fkl010h1         MeteoSchweiz                                       10d17'/46d48'            817137/186393    1303
+SCU       Scuol                                fkl010h0         MeteoSchweiz                                       10d17'/46d48'            817137/186393    1303
+SCU       Scuol                                dkl010h0         MeteoSchweiz                                       10d17'/46d48'            817137/186393    1303
+SIO       Sion                                 fkl010h1         MeteoSchweiz                                       7d20'/46d13'             591633/118583    482
+SIO       Sion                                 fkl010h0         MeteoSchweiz                                       7d20'/46d13'             591633/118583    482
+SIO       Sion                                 dkl010h0         MeteoSchweiz                                       7d20'/46d13'             591633/118583    482
+ULR       Ulrichen                             fkl010h1         MeteoSchweiz                                       8d18'/46d30'             666747/150767    1345
+ULR       Ulrichen                             fkl010h0         MeteoSchweiz                                       8d18'/46d30'             666747/150767    1345
+ULR       Ulrichen                             dkl010h0         MeteoSchweiz                                       8d18'/46d30'             666747/150767    1345
+VAD       Vaduz                                fkl010h1         MeteoSchweiz                                       9d31'/47d08'             757722/221699    457
+VAD       Vaduz                                fkl010h0         MeteoSchweiz                                       9d31'/47d08'             757722/221699    457
+VAD       Vaduz                                dkl010h0         MeteoSchweiz                                       9d31'/47d08'             757722/221699    457
+VIS       Visp                                 fkl010h1         MeteoSchweiz                                       7d51'/46d18'             631150/128024    639
+VIS       Visp                                 fkl010h0         MeteoSchweiz                                       7d51'/46d18'             631150/128024    639
+VIS       Visp                                 dkl010h0         MeteoSchweiz                                       7d51'/46d18'             631150/128024    639
+ZER       Zermatt                              fkl010h1         MeteoSchweiz                                       7d45'/46d02'             624298/97574     1638
+ZER       Zermatt                              fkl010h0         MeteoSchweiz                                       7d45'/46d02'             624298/97574     1638
+ZER       Zermatt                              dkl010h0         MeteoSchweiz                                       7d45'/46d02'             624298/97574     1638
+FRE       Bullet / La Frétaz                   fkl010h1         MeteoSchweiz                                       6d35'/46d50'             534225/188081    1205
+FRE       Bullet / La Frétaz                   fkl010h0         MeteoSchweiz                                       6d35'/46d50'             534225/188081    1205
+FRE       Bullet / La Frétaz                   dkl010h0         MeteoSchweiz                                       6d35'/46d50'             534225/188081    1205
+CHA       Chasseral                            fkl010h1         MeteoSchweiz                                       7d03'/47d08'             570845/220157    1594
+CHA       Chasseral                            fkl010h0         MeteoSchweiz                                       7d03'/47d08'             570845/220157    1594
+CHA       Chasseral                            dkl010h0         MeteoSchweiz                                       7d03'/47d08'             570845/220157    1594
+FAH       Fahy                                 fkl010h1         MeteoSchweiz                                       6d56'/47d25'             562464/252675    596
+FAH       Fahy                                 fkl010h0         MeteoSchweiz                                       6d56'/47d25'             562464/252675    596
+FAH       Fahy                                 dkl010h0         MeteoSchweiz                                       6d56'/47d25'             562464/252675    596
+CDF       La Chaux-de-Fonds                    fkl010h1         MeteoSchweiz                                       6d48'/47d05'             550919/214861    1017
+CDF       La Chaux-de-Fonds                    fkl010h0         MeteoSchweiz                                       6d48'/47d05'             550919/214861    1017
+CDF       La Chaux-de-Fonds                    dkl010h0         MeteoSchweiz                                       6d48'/47d05'             550919/214861    1017
+DOL       La Dôle                              fkl010h1         MeteoSchweiz                                       6d06'/46d25'             497060/142371    1669
+DOL       La Dôle                              fkl010h0         MeteoSchweiz                                       6d06'/46d25'             497060/142371    1669
+DOL       La Dôle                              dkl010h0         MeteoSchweiz                                       6d06'/46d25'             497060/142371    1669
+TAE       Aadorf / Tänikon                     fkl010h1         MeteoSchweiz                                       8d54'/47d29'             710517/259824    539
+TAE       Aadorf / Tänikon                     fkl010h0         MeteoSchweiz                                       8d54'/47d29'             710517/259824    539
+TAE       Aadorf / Tänikon                     dkl010h0         MeteoSchweiz                                       8d54'/47d29'             710517/259824    539
+AIG       Aigle                                fkl010h1         MeteoSchweiz                                       6d55'/46d20'             560404/130713    381
+AIG       Aigle                                fkl010h0         MeteoSchweiz                                       6d55'/46d20'             560404/130713    381
+AIG       Aigle                                dkl010h0         MeteoSchweiz                                       6d55'/46d20'             560404/130713    381
+BAS       Basel / Binningen                    fkl010h1         MeteoSchweiz                                       7d35'/47d32'             610908/265611    316
+BAS       Basel / Binningen                    fkl010h0         MeteoSchweiz                                       7d35'/47d32'             610908/265611    316
+BAS       Basel / Binningen                    dkl010h0         MeteoSchweiz                                       7d35'/47d32'             610908/265611    316
+BER       Bern / Zollikofen                    fkl010h1         MeteoSchweiz                                       7d28'/46d59'             601933/204409    552
+BER       Bern / Zollikofen                    fkl010h0         MeteoSchweiz                                       7d28'/46d59'             601933/204409    552
+BER       Bern / Zollikofen                    dkl010h0         MeteoSchweiz                                       7d28'/46d59'             601933/204409    552
+GVE       Genève / Cointrin                    fkl010h1         MeteoSchweiz                                       6d08'/46d15'             498904/122631    410
+GVE       Genève / Cointrin                    fkl010h0         MeteoSchweiz                                       6d08'/46d15'             498904/122631    410
+GVE       Genève / Cointrin                    dkl010h0         MeteoSchweiz                                       6d08'/46d15'             498904/122631    410
+GOE       Gösgen                               fkl010h1         MeteoSchweiz                                       7d58'/47d22'             640421/245949    380
+GOE       Gösgen                               fkl010h0         MeteoSchweiz                                       7d58'/47d22'             640421/245949    380
+GOE       Gösgen                               dkl010h0         MeteoSchweiz                                       7d58'/47d22'             640421/245949    380
+GUT       Güttingen                            fkl010h1         MeteoSchweiz                                       9d17'/47d36'             738421/273962    440
+GUT       Güttingen                            fkl010h0         MeteoSchweiz                                       9d17'/47d36'             738421/273962    440
+GUT       Güttingen                            dkl010h0         MeteoSchweiz                                       9d17'/47d36'             738421/273962    440
+LUZ       Luzern                               fkl010h1         MeteoSchweiz                                       8d18'/47d02'             665543/209849    454
+LUZ       Luzern                               fkl010h0         MeteoSchweiz                                       8d18'/47d02'             665543/209849    454
+LUZ       Luzern                               dkl010h0         MeteoSchweiz                                       8d18'/47d02'             665543/209849    454
+NEU       Neuchâtel                            fkl010h1         MeteoSchweiz                                       6d57'/47d00'             563086/205559    485
+NEU       Neuchâtel                            fkl010h0         MeteoSchweiz                                       6d57'/47d00'             563086/205559    485
+NEU       Neuchâtel                            dkl010h0         MeteoSchweiz                                       6d57'/47d00'             563086/205559    485
+CGI       Nyon / Changins                      fkl010h1         MeteoSchweiz                                       6d14'/46d24'             506878/139572    458
+CGI       Nyon / Changins                      fkl010h0         MeteoSchweiz                                       6d14'/46d24'             506878/139572    458
+CGI       Nyon / Changins                      dkl010h0         MeteoSchweiz                                       6d14'/46d24'             506878/139572    458
+PAY       Payerne                              fkl010h1         MeteoSchweiz Test                                  6d57'/46d49'             562131/184611    490
+PAY       Payerne                              fkl010h0         MeteoSchweiz Test                                  6d57'/46d49'             562131/184611    490
+PAY       Payerne                              dkl010h0         MeteoSchweiz                                       6d57'/46d49'             562131/184611    490
+PUY       Pully                                fkl010h1         MeteoSchweiz                                       6d40'/46d31'             540819/151510    455
+PUY       Pully                                fkl010h0         MeteoSchweiz                                       6d40'/46d31'             540819/151510    455
+PUY       Pully                                dkl010h0         MeteoSchweiz                                       6d40'/46d31'             540819/151510    455
+SHA       Schaffhausen                         fkl010h1         MeteoSchweiz                                       8d37'/47d41'             688702/282803    438
+SHA       Schaffhausen                         fkl010h0         MeteoSchweiz                                       8d37'/47d41'             688702/282803    438
+SHA       Schaffhausen                         dkl010h0         MeteoSchweiz                                       8d37'/47d41'             688702/282803    438
+STG       St. Gallen                           fkl010h1         MeteoSchweiz                                       9d24'/47d26'             747865/254588    775
+STG       St. Gallen                           fkl010h0         MeteoSchweiz                                       9d24'/47d26'             747865/254588    775
+STG       St. Gallen                           dkl010h0         MeteoSchweiz                                       9d24'/47d26'             747865/254588    775
+WYN       Wynau                                fkl010h1         MeteoSchweiz                                       7d47'/47d15'             626404/233848    421
+WYN       Wynau                                fkl010h0         MeteoSchweiz                                       7d47'/47d15'             626404/233848    421
+WYN       Wynau                                dkl010h0         MeteoSchweiz                                       7d47'/47d15'             626404/233848    421
+CIM       Cimetta                              fkl010h1         MeteoSchweiz                                       8d47'/46d12'             704433/117457    1661
+CIM       Cimetta                              fkl010h0         MeteoSchweiz                                       8d47'/46d12'             704433/117457    1661
+CIM       Cimetta                              dkl010h0         MeteoSchweiz                                       8d47'/46d12'             704433/117457    1661
+OTL       Locarno / Monti                      fkl010h1         MeteoSchweiz                                       8d47'/46d10'             704166/114316    366
+OTL       Locarno / Monti                      fkl010h0         MeteoSchweiz                                       8d47'/46d10'             704166/114316    366
+OTL       Locarno / Monti                      dkl010h0         MeteoSchweiz                                       8d47'/46d10'             704166/114316    366
+LUG       Lugano                               fkl010h1         MeteoSchweiz                                       8d58'/46d00'             717873/95884     273
+LUG       Lugano                               fkl010h0         MeteoSchweiz                                       8d58'/46d00'             717873/95884     273
+LUG       Lugano                               dkl010h0         MeteoSchweiz                                       8d58'/46d00'             717873/95884     273
+MAG       Magadino / Cadenazzo                 fkl010h1         MeteoSchweiz                                       8d56'/46d10'             715479/113161    203
+MAG       Magadino / Cadenazzo                 fkl010h0         MeteoSchweiz                                       8d56'/46d10'             715479/113161    203
+MAG       Magadino / Cadenazzo                 dkl010h0         MeteoSchweiz                                       8d56'/46d10'             715479/113161    203
+PIO       Piotta                               fkl010h1         MeteoSchweiz                                       8d41'/46d31'             695880/152264    990
+PIO       Piotta                               fkl010h0         MeteoSchweiz                                       8d41'/46d31'             695880/152264    990
+PIO       Piotta                               dkl010h0         MeteoSchweiz                                       8d41'/46d31'             695880/152264    990
+SBO       Stabio                               fkl010h1         MeteoSchweiz                                       8d56'/45d51'             716048/77973     351
+SBO       Stabio                               fkl010h0         MeteoSchweiz                                       8d56'/45d51'             716048/77973     351
+SBO       Stabio                               dkl010h0         MeteoSchweiz                                       8d56'/45d51'             716048/77973     351
+WAE       Wädenswil                            fkl010h1         MeteoSchweiz                                       8d41'/47d13'             693847/230744    485
+WAE       Wädenswil                            fkl010h0         MeteoSchweiz                                       8d41'/47d13'             693847/230744    485
+WAE       Wädenswil                            dkl010h0         MeteoSchweiz                                       8d41'/47d13'             693847/230744    485
+REH       Zürich / Affoltern                   fkl010h1         MeteoSchweiz                                       8d31'/47d26'             681432/253548    443
+REH       Zürich / Affoltern                   fkl010h0         MeteoSchweiz                                       8d31'/47d26'             681432/253548    443
+REH       Zürich / Affoltern                   dkl010h0         MeteoSchweiz                                       8d31'/47d26'             681432/253548    443
+SMA       Zürich / Fluntern                    fkl010h1         MeteoSchweiz                                       8d34'/47d23'             685116/248065    555
+SMA       Zürich / Fluntern                    fkl010h0         MeteoSchweiz                                       8d34'/47d23'             685116/248065    555
+SMA       Zürich / Fluntern                    dkl010h0         MeteoSchweiz                                       8d34'/47d23'             685116/248065    555
+KLO       Zürich / Kloten                      fkl010h1         MeteoSchweiz                                       8d32'/47d29'             682710/259338    426
+KLO       Zürich / Kloten                      fkl010h0         MeteoSchweiz                                       8d32'/47d29'             682710/259338    426
+KLO       Zürich / Kloten                      dkl010h0         MeteoSchweiz                                       8d32'/47d29'             682710/259338    426
