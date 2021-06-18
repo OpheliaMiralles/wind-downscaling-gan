@@ -1,0 +1,165 @@
+\documentclass[11pt,a4paper]{amsart}
+
+\usepackage[utf8]{inputenc}
+\usepackage{natbib}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{array}
+\usepackage{blindtext}
+\usepackage{tikz}
+\usepackage[right=1.5cm, left=1.5cm, top=3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\usepackage{color}
+\pagestyle{fancy}
+\rhead{\thepage}
+\cfoot{}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{bbm}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{capt-of}% or \usepackage{caption}
+\usepackage{varwidth}
+\usepackage[inline]{enumitem}
+\usepackage{gensymb}
+\renewcommand{\labelitemi}{$\bullet$}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Théorème}[section]
+\newtheorem{lemme}{Lemme}
+\newtheorem{corollaire}{Corollaire}
+\newtheorem{prop}[theorem]{Proposition}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{propriete}{Propriété}
+
+\theoremstyle{definition}
+\newtheorem*{ex}{Exemple}
+\newtheorem{definition}{Définition}[section]
+
+
+\theoremstyle{remark}
+\newtheorem*{remarque}{Remarque}
+
+\theoremstyle{remark}
+\newtheorem*{but}{Objectif}
+
+\theoremstyle{definition}
+\newtheorem*{exemple}{Exemple}
+
+
+\newcommand{\om}{\omega}
+\newcommand{\Om}{\Omega}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\PP}{\ensuremath{\mathbb{P}}}
+\newcommand{\EE}{\mathbb{E}}
+\newcommand{\RR}{\ensuremath{\mathbb{R}}}
+\newcommand{\ZZ}{\ensuremath{\mathbb{Z}}}
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\mc}[1]{\ensuremath{\mathcal{#1}}}
+\newcommand{\mb}[1]{\ensuremath{\mathbb{#1}}}
+
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\suit}{\ensuremath{\sim}}
+\newcommand{\parmi}[2]{\begin{pmatrix}
+		#1 \\ #2
+	\end{pmatrix}}
+\newcommand{\abs}[1]{\vert #1 \vert}
+\newcommand{\tend}{\underset{n\to\infty}{\longrightarrow}}
+\newcommand{\tendps}{\overset{p.s.}{\longrightarrow}}
+		
+\newcommand{\tendloi}{\overset{loi}{\longrightarrow}}
+\newcommand{\remark}[1]{\textit{Remark: #1}}
+
+		
+	
+\DeclareMathOperator{\var}{Var}
+\DeclareMathOperator{\Ber}{Ber}
+\DeclareMathOperator{\Bin}{Bin}
+\DeclareMathOperator{\Geom}{Geom}
+	%\DeclareMathOperator{\exp}{exp}
+	
+\newcommand{\trait}{\rule{2cm}{0.4pt}}
+
+\newcommand{\norme}[1]{\Vert #1 \Vert}
+
+\newcommand{\suitiid}{\overset{i.i.d.}{\suit}}
+
+
+\date{}
+
+
+\setlength{\parindent}{15pt}
+
+\begin{document}
+    \onehalfspacing
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}}
+
+
+\begin{titlepage}
+  
+\centering
+\textsc{\large }\\[0,3cm]
+
+
+
+\HRule \\[0.4cm]
+{ \huge \bfseries Accurate Downscaling for Historical Prediction of Wind Fields over Swizerland}\\[0.4cm] 
+\HRule \\[1.5cm]
+
+
+\begin{minipage}{0.5\textwidth}
+    \begin{flushleft} \large
+        Ophélia \textsc{Miralles}\\
+         Daniel \textsc{Steinfield}
+    \end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+    \begin{flushright} \large
+        Anthony \textsc{Davison} \\
+        Olivia \textsc{Romppainen}
+    \end{flushright}
+\end{minipage}\\[2cm]
+
+
+
+
+\end{titlepage}
+
+\tableofcontents
+  
+  \section*{Introduction}
+     Modelling of wind fields has been of recent interest for researchers: the field of application for wind databases is huge and comprises some of the greatest challenges ever faced by human kind, such as the ecological transition and climate hazards mitigation. Wind is an crucial component involved in the propagation of wildfires and avalanches: having a high resolution long-term wind data set would be useful to create climatologies of observed weather extreme events, help establishing patterns in hazards propagation due to wind thus assessing and mitigating the risks of climate events. Switzerland does not have any good gridded wind information that covers several decades, even though such datasets are provided for precipitation and temperature on a daily resolution by MeteoSwiss.
+     
+     Wind fields forecasts can be obtained directly as output of most climate models. However, the resolution obtained by running such models is usually of the order of 0.5 to 1\degree, which corresponds to grids of resolution between 25 and 80 square kilometers and is too coarse to use for analysis of specific climate events, especially in Switzerland. Indeed, the complex terrain in Switzerland produces specific wind patterns, such as sheltering and forced channeling, and permits the presence of thermal wind. Interactions between wind and topography are central to accurate prediction of wind fields, this is why this paper aims at building a topography-resilient historical high-resolution prediction of wind fields over Switzerland. 
+     
+     The approaches to wind downscaling vary according to many aspects, starting with the philosophical question of what is considered as the \textit{ground truth}. Most statisticians would agree that field observations are the truth, whereas physicians tend to attribute value to re-analysing observed data, by correcting measurement errors and smoothing data to match physical theory. In the wind downscaling field, a consequence of this consideration is that researchers favours either point by point modelling and forecasting (\cite{winstral2017statistical, nerini2020prob}) or mapping of low-resolution images directy to their high-resolution version (\cite{hohlein2020comparative, leinonen2020stochastic, ramon2021perfect}). Our model will incoporate both observations from MeteoSwiss wind stations and the output of the high-resolution climate model COSMO-1 developped by MeteoSwiss, using data assimilation techniques (\cite{gelfand2017handbook}).
+     
+    Research on downscaling atmospheric fields using neural network has known very recent development. Machine learning methods for wind downscaling can provide decent results, avoid information loss and require reasonable computational efforts if the structure is deep enough, as shown by \cite{hohlein2020comparative}. However, neural networks are mainly used to produce deterministic outcomes, which is an issue when one wants to know the full range of the model outcome. \cite{leinonen2020stochastic} overcome the issue by proposing a recurrent generative adversarial network adding noise to the original input in order to mimic a normally-distributed error term. However, Gaussian data is not that common, and neural networks don't usually provide flexibility with regards to the assumed distribution of observed data. A more probabilistic way of dealing with neural networks is using them as a help to estimate the parameters of a given statistical model, like what has been done by \cite{nerini2020prob} for wind speed data.
+    Statistical downscaling of wind speed using spatio-temporal regression models has also been recently popular (\cite{winstral2017statistical}, \cite{ramon2021perfect}), although models proposed until now mostly rely on the assumptions of linear dependence and normality and do not account for unobserved spatial phenomena. Complex statistical models may have been avoided on purpose because of the \textit{big n problem}. Nowadays, solutions exist for computational efficiency when we want to fit a large number of data points to multi-layers statistical models. For instance, \cite{castro2019spliced} present a hierarchical Bayesian model involving a biphasic distribution for extreme and non-extreme wind speeds observed at 260 stations in the US, which they calibrate using R-INLA.
+    
+    Models that include unobserved effects are uncommon in wind modelling and downscaling. A good example of wind speed statistical model using random effects is introduced by \cite{castro2019spliced}, who define a Matern field calibrated using a spatial partial differential equation approach (SPDE) to represent the spatial variability. The use of stationary covariance matrices translates the hypothesis that close things are more correlated than things that are further away in space, which is not particularly true for wind fields, for which the correlation structure in space can vary from one location to the other.
+    
+    
+     
+     
+     
+    \section{Data}
+    \subsection{Low-Resolution Fields}
+    \subsection{Predictors}
+    \subsection{High-Resolution Fields}
+  \section{Discussion}
+  \section*{Conclusion}
+  
+  \newpage
+  \bibliographystyle{authordate1}
+  \bibliography{bibli.bib}
+\end{document}

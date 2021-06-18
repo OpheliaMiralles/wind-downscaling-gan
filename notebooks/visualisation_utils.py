@@ -1,7 +1,7 @@
 import pathlib
 import re
+from glob import glob
 from io import StringIO
-from itertools import islice
 from typing import Union, Tuple
 
 import cartopy
@@ -9,13 +9,16 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import xarray as xr
 from netCDF4 import Dataset
+from topo_descriptors import topo, helpers
 
 
 class HigherResPlateCarree(ccrs.PlateCarree):
     @property
     def threshold(self):
         return super().threshold / 100
+
 
 def distance_from_coordinates(z1: Tuple, z2: Tuple):
     """
@@ -30,15 +33,46 @@ def distance_from_coordinates(z1: Tuple, z2: Tuple):
     r = 6371  # radius of Earth (KM)
     p = np.pi / 180
     a = 0.5 - np.cos((lat2 - lat1) * p) / 2 + np.cos(lat1 * p) * np.cos(lat2 * p) * (
-                1 - np.cos((lon2 - lon1) * p)) / 2
+            1 - np.cos((lon2 - lon1) * p)) / 2
     d = 2 * r * np.arcsin(np.sqrt(a))
     return d
 
+
+def process_topographic_variables_file(path_to_file: pathlib.Path):
+    dem = xr.open_rasterio(path_to_file)
+    dem = dem.isel(band=0, drop=True)
+    # TPI 500m
+    scale_meters = 500
+    scale_pixel, res_meters = helpers.scale_to_pixel(scale_meters, dem)
+    tpi = topo.tpi(dem, scale_pixel)
+    # Gradient
+    gradient = topo.gradient(dem, 1 / 4 * scale_meters, res_meters)
+    we_der, sn_der, slope, aspect = gradient
+    # Norm and second the direction of Ridge index
+    vr = topo.valley_ridge(dem, scale_pixel, mode='ridge')
+
+    # Sx
+    def Sx(azimuth=0, radius=500):
+        pass
+
+    all = (tpi, *vr, *gradient)
+    names = ('tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+             'we_derivative', 'sn_derivative',
+             'slope', 'aspect')
+    for data, name in zip(all, names):
+        da = xr.DataArray(data,
+                          coords=dem.coords,
+                          name=name)
+        filename = f"topo_{name}.nc"
+        da.to_dataset().to_netcdf(pathlib.Path(path_to_file.parent, filename))
+    return tpi, vr
+
+
 def process_wind_variables_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     df = pd.read_csv(path_to_file, sep=';').rename(columns={"stn": 'station',
-                                                    'time': 'datetime_raw',
-                                                    'fkl010h0': "wind_speed_mps",
-                                                    'dkl010h0': "wind_direction_degrees"})
+                                                            'time': 'datetime_raw',
+                                                            'fkl010h0': "wind_speed_mps",
+                                                            'dkl010h0': "wind_direction_degrees"})
     df = df[df["station"] != 'stn']
     df["wind_speed_mps"] = df["wind_speed_mps"].replace('-', np.NaN).astype(float)
     df["wind_direction_degrees"] = df["wind_direction_degrees"].replace('-', np.NaN).astype(float)
@@ -49,6 +83,7 @@ def process_wind_variables_file_from_MeteoSwiss(path_to_file: pathlib.Path):
         .assign(hour=lambda x: x["datetime_raw"].astype(str).str[-2:]) \
         .assign(month=lambda x: x["datetime_raw"].astype(str).str[4:6])
     return df
+
 
 def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     s = re.sub(' {2,}', '\t', path_to_file.read_text('latin1'))
@@ -277,3 +312,27 @@ def plot_wind_components_from_different_datasets(d1: Dataset, d2: Dataset, time_
     ax = plot_wind_components_from_array(v1, v2, longs_place, lats_place, range_values_to_display, ax=ax,
                                          title=title)
     return ax
+
+
+def plot_ERA5_wind_fields_timelapse(start_date, end_date, data_path, plot_path, range_lon=None, range_lat=None):
+    from PIL import Image
+    files = glob(f'{data_path}/*surface*.nc')
+    dates = sorted([pd.to_datetime(file.split('/')[-1].split('.')[0].split('_')[0]) for file in files])
+    dates = [d for d in dates if d >= start_date and d <= end_date]
+    for date in dates:
+        date_str = date.strftime('%Y%m%d')
+        file = f'{data_path}/{date_str}_era5_surface_hourly.nc'
+        data = Dataset(file, mode='r')  # read the data
+        subplot_kw = {'projection': HigherResPlateCarree()}
+        fig, ax = plt.subplots(ncols=1, subplot_kw=subplot_kw, figsize=(25, 12.5))
+        fig.subplots_adjust(wspace=0.1, left=0.05, right=0.95)
+        plot_wind_components_from_dataset(data, 0, 'u10', 'v10',
+                                          range_lon=range_lon, range_lat=range_lat,
+                                          ax=ax)
+        plt.savefig(f'{plot_path}/{date}.png')
+    images = []
+    for date in dates:
+        images.append(
+            Image.open(f'{plot_path}/{date}.png'))
+    images[0].save(f'{plot_path}/era5_timelapse.gif',
+                   save_all=True, append_images=images[1:], duration = 300, loop = 0)
