@@ -78,16 +78,48 @@ p.res <- inla(
   formula1, data = inla.stack.data(stk.full), ## using the full data
   control.predictor = list(compute = TRUE, ## compute the predictor
                            A = inla.stack.A(stk.full)), ## from full data
-  control.mode = list(theta = model1$mode$theta), verbose = TRUE,
-  tag = 'pred') ## use the mode previously found
+  control.mode = list(theta = model1$mode$theta), verbose = TRUE) ## use the mode previously found
 
 pred.ind <- inla.stack.index( ## stack index extractor function
   stk.full, ## the data stack to be considered
   tag = 'pred' ## which part of the data to look at
-)$data ## which elements to collect
-ypost <- p.res$marginals.fitted.values[pred.ind]
-xyl <- apply(Reduce('rbind', ypost), 2, range)
+)$data
+pred.ind.red <- array(pred.ind[1:100]) ## which elements to collect
+ypost <- p.res$marginals.fitted.values[pred.ind.red]
 par(mfrow = c(1, 3), mar = c(3, 3, 2, 1), mgp = c(2, 1, 0))
-for (j in 1:3)
-  plot(ypost[[j]], type = 'l', xlim = xyl[, 1], ylim = xyl[, 2],
-       xlab = 'y', ylab = 'density', main = paste0('y', j))
+observed <- in.data$u10_hr
+order <- order(p.res$summary.fitted.values$mean[pred.ind.red])
+plot(observed[order], pch=0, cex=0.5, ylab='observed')
+segments(1:length(observed), p.res$summary.fitted.val$`0.025quant`[pred.ind.red][order],
+         1:length(observed), p.res$summary.fitted.val$`0.975quant`[pred.ind.red][order])
+
+ggplot_inla_residuals <- function(inla.model, observed, binwidth = NULL){
+if(is.null(inla.model$marginals.fitted.values)) stop('No fitted values to plot')
+if(any(is.na(inla.model$misc$linkfunctions$link))){
+warning('Fitted values from the INLA model may have been returned on the linear, rather than link scale. Use `control.predictor = list(link = 1)` to make sure all fitted values are on the natural scale.')
+}
+predicted.p.value <- c()
+n <- length(observed)
+for(i in (1:n)){
+predicted.p.value[i] <- INLA::inla.pmarginal(q = observed[i], marginal = inla.model$marginals.fitted.values[[i]])
+}
+df <- data.frame(predicted = inla.model$summary.fitted.values$mean[1:length(observed)],
+observed = observed,
+lower = inla.model$summary.fitted.values$`0.025quant`[1:length(observed)],
+upper = inla.model$summary.fitted.values$`0.975quant`[1:length(observed)],
+p.value = predicted.p.value)
+min <- min(df[, c('lower', 'observed')])
+max <- max(df[, c('upper', 'observed')])
+plots <- list()
+plots[[1]] <- ggplot2::ggplot(df, ggplot2::aes_string(x = 'predicted.p.value')) +
+ggplot2::geom_histogram(binwidth = binwidth)
+plots[[2]] <- ggplot2::ggplot(df, ggplot2::aes_string(x = 'predicted', y = 'observed')) +
+ggplot2::geom_point() +
+ggplot2::geom_abline(slope = 1, intercept = 0) +
+ggplot2::labs(y = "Observed", x = "Fitted") +
+ggplot2::lims(x = c(min, max), y = c(min, max))
+return(invisible(plots))
+}
+
+plots <- ggplot_inla_residuals(p.res, observed)
+save.image("/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/results/INLA/simple_regression_with_randomeffect.RData")

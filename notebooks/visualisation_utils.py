@@ -1,7 +1,5 @@
-import pathlib
 import re
 from glob import glob
-from io import StringIO
 from typing import Union, Tuple
 
 import cartopy
@@ -9,117 +7,13 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xarray as xr
 from netCDF4 import Dataset
-from topo_descriptors import topo, helpers
 
 
 class HigherResPlateCarree(ccrs.PlateCarree):
     @property
     def threshold(self):
         return super().threshold / 100
-
-
-def distance_from_coordinates(z1: Tuple, z2: Tuple):
-    """
-
-    :param z1: tuple of longitudes for the 2 places
-    :param z2: tuple of latitudes for the 2 places
-    :return: distance between the 2 places in km
-    """
-    lon1, lat1 = z1
-    lon2, lat2 = z2
-    # Harvestine formula
-    r = 6371  # radius of Earth (KM)
-    p = np.pi / 180
-    a = 0.5 - np.cos((lat2 - lat1) * p) / 2 + np.cos(lat1 * p) * np.cos(lat2 * p) * (
-            1 - np.cos((lon2 - lon1) * p)) / 2
-    d = 2 * r * np.arcsin(np.sqrt(a))
-    return d
-
-
-def process_topographic_variables_file(path_to_file: pathlib.Path):
-    dem = xr.open_rasterio(path_to_file)
-    dem = dem.isel(band=0, drop=True)
-    # TPI 500m
-    scale_meters = 500
-    scale_pixel, res_meters = helpers.scale_to_pixel(scale_meters, dem)
-    tpi = topo.tpi(dem, scale_pixel)
-    # Gradient
-    gradient = topo.gradient(dem, 1 / 4 * scale_meters, res_meters)
-    we_der, sn_der, slope, aspect = gradient
-    # Norm and second the direction of Ridge index
-    vr = topo.valley_ridge(dem, scale_pixel, mode='ridge')
-
-    # Sx
-    def Sx(azimuth=0, radius=500):
-        pass
-
-    all = (tpi, *vr, *gradient)
-    names = ('tpi_500', 'ridge_index_norm', 'ridge_index_dir',
-             'we_derivative', 'sn_derivative',
-             'slope', 'aspect')
-    for data, name in zip(all, names):
-        da = xr.DataArray(data,
-                          coords=dem.coords,
-                          name=name)
-        filename = f"topo_{name}.nc"
-        da.to_dataset().to_netcdf(pathlib.Path(path_to_file.parent, filename))
-    return tpi, vr
-
-
-def process_wind_variables_file_from_MeteoSwiss(path_to_file: pathlib.Path):
-    df = pd.read_csv(path_to_file, sep=';').rename(columns={"stn": 'station',
-                                                            'time': 'datetime_raw',
-                                                            'fkl010h0': "wind_speed_mps",
-                                                            'dkl010h0': "wind_direction_degrees"})
-    df = df[df["station"] != 'stn']
-    df["wind_speed_mps"] = df["wind_speed_mps"].replace('-', np.NaN).astype(float)
-    df["wind_direction_degrees"] = df["wind_direction_degrees"].replace('-', np.NaN).astype(float)
-    df = df.assign(datetime=lambda x: pd.to_datetime(x["datetime_raw"], format='%Y%m%d%H')) \
-        .assign(theta_radians=lambda x: np.pi * x["wind_direction_degrees"] / 180) \
-        .assign(u10=lambda x: x["wind_speed_mps"] * np.cos(x["theta_radians"])) \
-        .assign(v10=lambda x: x["wind_speed_mps"] * np.sin(x["theta_radians"])) \
-        .assign(hour=lambda x: x["datetime_raw"].astype(str).str[-2:]) \
-        .assign(month=lambda x: x["datetime_raw"].astype(str).str[4:6])
-    return df
-
-
-def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
-    s = re.sub(' {2,}', '\t', path_to_file.read_text('latin1'))
-    stations = pd.read_csv(StringIO(s), sep='\t')
-    stations = stations.reset_index().drop_duplicates('index')
-    if 'Name' in stations.columns:
-        stations = stations.drop(columns=['Name'])
-    elif 'Nom' in stations.columns:
-        stations = stations.drop(columns=['Nom'])
-    stations = stations.rename(
-        columns={'  ': 'station',
-                 'index': 'station',
-                 'stn': 'station_name',
-                 'Parameter': 'data_source',
-                 'Source de donnÈes': 'lon/lat',
-                 'Source de données': 'lon/lat',
-                 'Source de donnees': 'lon/lat',
-                 'Data source': 'lon/lat',
-                 'Longitude/Latitude': 'coordinates_km',
-                 'CoordonnÈes [km] Altitude [m]': 'altitude_m',
-                 'Coordonnees [km] Altitude [m]': 'altitude_m',
-                 'Coordonnées [km] Altitude [m]': 'altitude_m',
-                 'Coordinates [km] Elevation [m]': 'altitude_m'})
-    stations = stations.assign(lon=lambda x: x['lon/lat']).assign(lat=lambda x: x['lon/lat']).assign(
-        x_km=lambda x: x['coordinates_km']).assign(y_km=lambda x: x['coordinates_km'])
-    stations['lon'] = stations['lon'].apply(
-        lambda x: float(x.split('/')[0].split('d')[0]) + float(x.split('/')[0].replace("'", '').split('d')[-1]) / 60)
-    stations['lat'] = stations['lat'].apply(
-        lambda x: float(x.split('/')[1].split('d')[0]) + float(x.split('/')[1].replace("'", '').split('d')[-1]) / 60)
-    stations['x_km'] = stations['x_km'].apply(lambda x: float(x.split('/')[0]))
-    stations['y_km'] = stations['y_km'].apply(lambda x: float(x.split('/')[1]))
-    if 'lon/lat' in stations.columns:
-        stations = stations.drop(columns=['lon/lat'])
-    if 'coordinates_km' in stations.columns:
-        stations = stations.drop(columns=['coordinates_km'])
-    return stations
 
 
 def dataset_times_to_datetime(data: Dataset, times: np.ndarray):
@@ -200,8 +94,6 @@ def plot_colormap_from_array(data: np.ndarray,
     c_scheme = ax.pcolormesh(longitudes, latitudes, data, transform=HigherResPlateCarree(), cmap='jet')
     plt.colorbar(c_scheme, location='bottom', pad=0.05,
                  label=unit, ax=ax)
-    ax.coastlines()
-    ax.add_feature(cartopy.feature.BORDERS, color='black')
     if range_values_to_display is not None:
         min_value_to_display, max_value_to_display = range_values_to_display
         ax.clim(min_value_to_display, max_value_to_display)
@@ -335,4 +227,4 @@ def plot_ERA5_wind_fields_timelapse(start_date, end_date, data_path, plot_path, 
         images.append(
             Image.open(f'{plot_path}/{date}.png'))
     images[0].save(f'{plot_path}/era5_timelapse.gif',
-                   save_all=True, append_images=images[1:], duration = 300, loop = 0)
+                   save_all=True, append_images=images[1:], duration=300, loop=0)
