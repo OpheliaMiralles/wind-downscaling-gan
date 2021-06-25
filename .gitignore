@@ -11,7 +11,7 @@ logs
 checkpoints
 
 # Data files and such
-data
+./data
 *.npy
 *.nc
 *.png
