@@ -9,8 +9,9 @@ from tensorflow.keras.layers import TimeDistributed, Lambda
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.layers import ConvLSTM2D
 
-from blocks import res_block
-from layers import ReflectionPadding2D
+from gan.blocks import res_block
+from gan.layers import ReflectionPadding2D
+from gan.rnn import ConvGRU, ConvGate, PaddingGate
 
 
 def make_generator_model(in_channels=1, out_channels=1, num_timesteps=8, num_res_blocks=3, image_size=(None, None),
@@ -26,23 +27,13 @@ def make_generator_model(in_channels=1, out_channels=1, num_timesteps=8, num_res
     for i in range(num_res_blocks):
         xt = res_block(256, time_dist=True, activation='relu')(xt)
 
-    # x = CustomGateGRU(
-    # x = ConvGRU(
-    #     image_size,
-    #     update_gate=ConvGate(),
-    #     reset_gate=ConvGate(),
-    #     output_gate=ConvGate(activation='linear'),
-    #     return_sequences=True,
-    # time_steps=num_timesteps
-    x = ConvLSTM2D(
-        filters=256,
-        kernel_size=3,
-        strides=1,
-        padding='same',
-        activation='linear',
-        recurrent_activation='sigmoid',
-        return_sequences=True
-    )([xt, initial_state])
+    x = ConvGRU(
+        initial_state.shape[1:],
+        update_gate=ConvGate(),
+        reset_gate=ConvGate(),
+        output_gate=ConvGate(activation='linear'),
+        return_sequences=True,
+    )(xt, initial_state)
 
     block_channels = [256, 256, 128, 64, 32]
     for (i, channels) in enumerate(block_channels):
@@ -53,7 +44,7 @@ def make_generator_model(in_channels=1, out_channels=1, num_timesteps=8, num_res
     x = TimeDistributed(ReflectionPadding2D(padding=(1, 1)))(x)
     img_out = TimeDistributed(Conv2D(out_channels, kernel_size=(3, 3), activation='sigmoid'))(x)
 
-    img_out = TimeDistributed(MaxPool2D(48))(img_out)
+    # img_out = TimeDistributed(MaxPool2D(48))(img_out)
 
     return Model(inputs=inputs, outputs=img_out, name='generator')
 
@@ -66,15 +57,16 @@ def make_discriminator_model(in_channels=1, out_channels=1, num_timesteps=8, hig
     x_hr = high_res
     x_lr = low_res
 
-    for _ in range(7):
-        x_hr = TimeDistributed(UpSampling2D(size=(2, 2)))(x_hr)
+    # for _ in range(7):
+    #     x_hr = TimeDistributed(UpSampling2D(size=(2, 2)))(x_hr)
 
-    x_lr = TimeDistributed(UpSampling2D())(x_lr)
-    x_lr = TimeDistributed(ReflectionPadding2D())(x_lr)
+    # x_lr = TimeDistributed(UpSampling2D())(x_lr)
+    # x_lr = TimeDistributed(ReflectionPadding2D())(x_lr)
 
     block_channels = [32, 64, 128, 256]
     for (i, channels) in enumerate(block_channels):
-        x_hr = res_block(channels, time_dist=True, norm="spectral", stride=2)(x_hr)
+        # x_hr = res_block(channels, time_dist=True, norm="spectral", stride=2)(x_hr)
+        x_hr = res_block(channels, time_dist=True, norm="spectral")(x_hr)
         x_lr = res_block(channels, time_dist=True, norm="spectral")(x_lr)
 
     # x_lr = TimeDistributed(MaxPool2D(3))(x_lr)
@@ -87,38 +79,19 @@ def make_discriminator_model(in_channels=1, out_channels=1, num_timesteps=8, hig
     x_hr = res_block(256, time_dist=True, norm="spectral")(x_hr)
 
     h = Lambda(lambda x: tf.zeros_like(x[:, 0, ...]))
-    # x_joint = CustomGateGRU(
-    # x_joint = ConvGRU(
-    #     (256, 256),
-    #     update_gate=PaddingGate(),
-    #     reset_gate=PaddingGate(),
-    #     output_gate=PaddingGate(activation='linear'),
-    #     return_sequences=True,
-    # time_steps=num_timesteps
-    x_joint = ConvLSTM2D(
-        256,
-        (3, 3),
-        (1, 1),
-        padding='same',
-        activation='linear',
-        recurrent_activation='sigmoid',
-        return_sequences=True
+    x_joint = ConvGRU(
+        x_joint.shape[2:],
+        update_gate=PaddingGate(),
+        reset_gate=PaddingGate(),
+        output_gate=PaddingGate(activation='linear'),
+        return_sequences=True,
     )([x_joint, h(x_joint)])
-    # x_hr = ConvGRU(
-    #     (256, 256),
-    #     update_gate=PaddingGate(),
-    #     reset_gate=PaddingGate(),
-    #     output_gate=PaddingGate(activation='linear'),
-    #     return_sequences=True,
-    # time_steps=num_timesteps
-    x_hr = ConvLSTM2D(
-        256,
-        (3, 3),
-        (1, 1),
-        padding='same',
-        activation='linear',
-        recurrent_activation='sigmoid',
-        return_sequences=True
+    x_hr = ConvGRU(
+        x_hr.shape[2:],
+        update_gate=PaddingGate(),
+        reset_gate=PaddingGate(),
+        output_gate=PaddingGate(activation='linear'),
+        return_sequences=True,
     )([x_hr, h(x_hr)])
 
     x_avg_joint = TimeDistributed(GlobalAveragePooling2D())(x_joint)

@@ -3,7 +3,7 @@ from tensorflow.keras.layers import Conv2D, Activation
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.layers import RNN
 
-from layers import ReflectionPadding2D
+from gan.layers import ReflectionPadding2D
 
 
 class ConvGate(Layer):
@@ -44,6 +44,11 @@ class ConvGRUCell(Layer):
         out = self.output_gate(tf.concat((x, reset * state), axis=-1))
         new_state = z * state + (1 - z) * tf.math.tanh(out)
         return out, [new_state]
+
+    def get_config(self):
+        config = super().get_config()
+        config['state_size'] = self.state_size
+        return config
 
 
 def ConvGRU(state_size, update_gate, reset_gate, output_gate, return_sequences=False, **kwargs):

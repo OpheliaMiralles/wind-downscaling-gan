@@ -4,7 +4,7 @@ from tensorflow.keras.layers import BatchNormalization, TimeDistributed
 from tensorflow.keras.layers import ELU, LeakyReLU, ReLU, ThresholdedReLU
 from tensorflow.keras.regularizers import l2
 
-from layers import SNConv2D, ReflectionPadding2D
+from gan.layers import ReflectionPadding2D
 
 
 def conv_block(channels, conv_size=(3, 3), time_dist=False,
