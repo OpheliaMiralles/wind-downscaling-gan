@@ -1,8 +1,7 @@
-@@ -1,187 +0,0 @@
 import numpy as np
 
 
-# COSMO data for Swizerland has resolution 1.1km, which is an image size of 1075*691
+# COSMO data for Switzerland has resolution 1.1km, which is an image size of 1075*691
 # we might consider daily sequences in hourly resolution (24 images per sequence) because of observed patterns
 # adding the altitude in addition to longitude and latitude would produce vectors in 5 dimensions (time, lon, lat, (alt, value))
 
