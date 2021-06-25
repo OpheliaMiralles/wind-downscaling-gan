@@ -3,14 +3,21 @@ __pycache__
 .ipynb_checkpoints
 .vscode
 .DS_Store
+*.egg-info
+.env
+
+# Model progress
 logs
 checkpoints
-data/ERA5
-*.egg-info
+
+# Data files and such
+data
 *.npy
 *.nc
 *.png
 *.gif
+*.tif
+*.RData
 
 # TeX compilation
 *.aux
