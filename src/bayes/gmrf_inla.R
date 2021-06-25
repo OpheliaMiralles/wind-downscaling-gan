@@ -16,37 +16,12 @@ mesh <- inla.mesh.2d(loc, boundary = list(bnd1, bnd2),
 A <- inla.spde.make.A(mesh, loc)
 # defines the mapping matrix between nodes for spde and initial locations
 spde <- inla.spde2.matern(mesh, alpha = 2)
-formula1 <- u10_hr ~ 0 +
-  a0 +
-  u10 +
-  v10 +
-  fsr +
-  blh +
-  z +
-  sp +
-  tpi_500 +
-  aspect +
-  ns(month, df = 10) +
-  f(hour, model = "rw1", replicate = station_id) +
-  f(spatial, model = spde)
+formula1 <- u10_hr ~ 0 + a0 + u10 + f(spatial, model = spde)
 stk <- inla.stack(data = list(u10_hr = out.data$u10_hr), A = list(A, 1),
                   effect = list(spatial = 1:spde$n.spde,
-                                data.frame(a0 = 1,
-                                           u10 = out.data$u10,
-                                           v10 = out.data$v10,
-                                           fsr = out.data$fsr,
-                                           z = out.data$z,
-                                           blh = out.data$blh,
-                                           hour = out.data$hour,
-                                           month = out.data$month,
-                                           station_id = out.data$station_id,
-                                           tpi_500 = out.data$tpi_500,
-                                           aspect = out.data$aspect,
-                                           sp = out.data$sp)))
+                                data.frame(a0 = 1, u10 = out.data$u10)))
 model1 <- inla(formula1, family = "gaussian",
-               data = inla.stack.data(stk),
-               control.predictor = list(A = inla.stack.A(stk)),
-               verbose = TRUE)
+               data = inla.stack.data(stk), control.predictor = list(A = inla.stack.A(stk)), verbose = TRUE)
 
 # Visualising random effect
 gproj <- inla.mesh.projector( ## projector builder
