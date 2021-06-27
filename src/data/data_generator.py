@@ -1,51 +1,92 @@
+import pathlib
+
 import numpy as np
+import pandas as pd
+import xarray as xr
 
 
-# COSMO data for Switzerland has resolution 1.1km, which is an image size of 1075*691
+# COSMO data for Swizerland has resolution 1.1km, which is an image size of 1075*691
 # we might consider daily sequences in hourly resolution (24 images per sequence) because of observed patterns
 # adding the altitude in addition to longitude and latitude would produce vectors in 5 dimensions (time, lon, lat, (alt, value))
 
 class BatchGenerator(object):
-    def __init__(self, input_sequences, output_sequences, decoder, batch_size=32,
-                 transform=True):
+    def __init__(self, path_to_data, decoder,
+                 start_date=None,
+                 end_date=None,
+                 sequence_length=6,
+                 patch_length_pixel=30,
+                 batch_size=16,
+                 transform=True,
+                 input_variables=('u10', 'v10', 'blh', 'fsr', 'sp',
+                                  'z', 'vo', 'd',
+                                  'tpi_500', 'ridge_index_norm'),
+                 output_variables=('U_10M', 'V_10M')):
         self.insert_random_img_transforms = transform
         self.batch_size = batch_size
-        self.input_sequences = input_sequences
-        self.output_sequences = output_sequences
         self.decoder = decoder
-        self.reset()
+        self.sequence_length = sequence_length
+        self.patch_length_pixel = patch_length_pixel
+        self.input_variables = input_variables
+        self.output_variables = output_variables
+        self.dates = sorted([f.with_suffix('').name.split('_')[-1] for f in pathlib.Path(path_to_data).glob('x_*.nc')])
+        if start_date is not None:
+            self.dates = [d for d in self.dates if pd.to_datetime(d) >= start_date]
+        if end_date is not None:
+            self.dates = [d for d in self.dates if pd.to_datetime(d) <= end_date]
+        self.data_path = path_to_data
+        self.current_date_index = -1
+        self.prng = np.random.RandomState(seed=None)
+
+    def next_date(self):
+        self.current_date_index = (self.current_date_index + 1) % len(self.dates)
+        return self.dates[self.current_date_index]
 
     def __iter__(self):
         return self
 
     def reset(self, random_seed=None):
         self.prng = np.random.RandomState(seed=random_seed)
-        self.next_ind = np.array([], dtype=int)
+        self.current_date_index = -1
 
-    def next_indices(self):
-        N = self.input_sequences.shape[0]  # nb of sequences
-        while len(self.next_ind) < self.batch_size:
-            ind = np.arange(N, dtype=int)
-            self.prng.shuffle(ind)
-            self.next_ind = np.concatenate([self.next_ind, ind])
-        return self.next_ind[:self.batch_size]
+    def get_random_square_sequences_per_day(self, X, Y):
+        coords_keys = list(X.dims.keys())
+        x_coord, y_coord = (k for k in coords_keys if k != 'time')
+        random_x_coord = np.random.randint(0, X.dims[x_coord] - 1 - self.patch_length_pixel)
+        random_y_coord = np.random.randint(0, X.dims[y_coord] - 1 - self.patch_length_pixel)
+        random_time = np.random.randint(0, X.dims['time'] - 1 - self.sequence_length)
+        random_x_sequence_on_the_upper_left_side = np.array(X.isel(
+            {'time': slice(random_time, random_time + self.sequence_length),
+             x_coord: slice(random_x_coord, random_x_coord + self.patch_length_pixel),
+             y_coord: slice(random_y_coord, random_y_coord + self.patch_length_pixel)}).to_dask_dataframe()[
+                                                                list(self.input_variables)]) \
+            .reshape((self.sequence_length, self.patch_length_pixel, self.patch_length_pixel, -1))
+        random_y_sequence_on_the_upper_left_side = np.array(Y.isel(
+            {'time': slice(random_time, random_time + self.sequence_length),
+             x_coord: slice(random_x_coord, random_x_coord + self.patch_length_pixel),
+             y_coord: slice(random_y_coord, random_y_coord + self.patch_length_pixel)}).to_dask_dataframe()[
+                                                                list(self.output_variables)]) \
+            .reshape((self.sequence_length, self.patch_length_pixel, self.patch_length_pixel, -1))
+        return random_x_sequence_on_the_upper_left_side, random_y_sequence_on_the_upper_left_side
 
     def __next__(self):
-        ind = self.next_indices()
-        self.next_ind = self.next_ind[self.batch_size:]
-        X = self.input_sequences[ind, ...]
-        X = self.decoder(X)
-        Y = self.output_sequences[ind, ...]
-        Y = self.decoder(Y)
-        if self.insert_random_img_transforms:
-            X, Y = self.augment_sequence_batch(X, Y)
-        X = self.decoder.normalize(X)
-        Y = self.decoder.normalize(Y)
-        return (X, Y)
+        date = self.next_date()
+        input = xr.open_dataset(pathlib.Path(self.data_path, f'x_{date}').with_suffix('.nc'))
+        output = xr.open_dataset(pathlib.Path(self.data_path, f'y_{date}').with_suffix('.nc'))
+        input_batch = []
+        output_batch = []
+        for b in range(self.batch_size):
+            X, Y = self.get_random_square_sequences_per_day(input, output)
+            X = self.decoder(X)
+            # Y = self.decoder(Y)
+            if self.insert_random_img_transforms:
+                X, Y = self.transform_sequence(X, Y)
+            input_batch.append(X)
+            output_batch.append(Y)
+        in_batch = np.stack(input_batch, axis=0)
+        out_batch = np.stack(output_batch, axis=0)
+        return (in_batch, out_batch)
 
-    def tansform_sequence(self, X, Y):
-        X = X.copy()
-        Y = Y.copy()
+    def transform_sequence(self, X, Y):
         # mirror
         if bool(self.prng.randint(2)):
             X = np.flip(X, axis=1)
@@ -58,13 +99,6 @@ class BatchGenerator(object):
         if num_rot > 0:
             X = np.rot90(X, k=num_rot, axes=(1, 2))
             Y = np.rot90(Y, k=num_rot, axes=(1, 2))
-        return X, Y
-
-    def augment_sequence_batch(self, X, Y):
-        X = X.copy()
-        Y = Y.copy()
-        for i in range(X.shape[0]):
-            X[i, ...], Y[i, ...] = self.tansform_sequence(X[i, ...], Y[i, ...])
         return X, Y
 
     def __call__(self):
@@ -111,23 +145,31 @@ class NoiseGenerator(object):
 
 
 class NaiveDecoder(object):
-    def __init__(self, normalize=False):
-        self.normalize_output = normalize
+    def __init__(self, normalize=True):
+        self.normalize_input = normalize
 
     def __call__(self, img):
         valid = (img != np.nan)
         img_dec = np.full(img.shape, np.nan, dtype=np.float32)
         img_dec[valid] = img[valid]
-        if self.normalize_output:
+        if self.normalize_input:
             img_dec = self.normalize(img_dec)
         return img_dec
 
     def normalize(self, img):
-        return (img - np.nanmean(img)) / np.nanstd(img)
+        return (img - np.nanmean(img, axis=(0, 1, 2), keepdims=True)) / np.nanstd(img, axis=(0, 1, 2),
+                                                                                  keepdims=True)
+
+    def normalize_positive(self, img):
+        return (img - np.nanmin(img, axis=(0, 1, 2), keepdims=True)) / (
+                np.nanmax(img, axis=(0, 1, 2), keepdims=True) - np.nanmin(img, axis=(0, 1, 2), keepdims=True))
 
     def denormalize(self, img):
         img = img * np.nanstd(img) + np.nanmean(img)
         return img
+
+    def denormalize_positive(self, img):
+        return np.nanmin(img) + img * (np.nanmax(img) - np.nanmin(img))
 
 
 class WindSpeedDecoder(object):
