@@ -221,29 +221,25 @@ class PointPredictionProcessingCOSMO(object):
         self.predictors_cosmo = predictors_cosmo
         self.static_predictors = static_predictors
         self.variables_to_predict = variables_to_predict
-        self.path_to_output = path_to_output or pathlib.Path(path_to_cosmo_input).parent.parent / 'point_prediction_files'
+        self.path_to_output = path_to_output or pathlib.Path(
+            path_to_cosmo_input).parent.parent / 'point_prediction_files'
 
     def create_patch_for_point(self, date, lon_point, lat_point):
         date = date.strftime("%Y-%m-%d")
 
-        def inputs_rectangle_around_point(lon_point=lon_point, lat_point=lat_point):
+        def inputs_rectangle_around_point():
             inputs_to_concatenate = []
-            longitudes = np.unique(np.array(self.input_cosmo.lon_1.data))
-            latitudes = np.unique(np.array(self.input_cosmo.lat_1.data))
-            distances_lon, distances_lat = np.abs(longitudes - lon_point), np.abs(
-                np.array(latitudes - lat_point))
-            nearest_lon, nearest_lat = longitudes[np.argmin(distances_lon)], \
-                                       latitudes[np.argmin(distances_lat)]
-            # ToDo: find indices for x and y for that lon and lat and isel on x and y
-            lon1, lon2 = nearest_lon - self.patch_size // 2, nearest_lon + self.patch_size // 2
-            lat1, lat2 = nearest_lat - self.patch_size // 2, nearest_lat + self.patch_size // 2
-            lon_lb, lon_ub = longitudes[lon1:lon2].min(), longitudes[lon1:lon2].max()
-            lat_lb, lat_ub = latitudes[lat1:lat2].min(), latitudes[lat1:lat2].max()
-            inputs = self.input_cosmo.sel(time=date).sel(lon_1=slice(lon1, lon2), lat_1=slice(lat1, lat2))
+            distances = np.array([distance_from_coordinates((lon_point, lat_point), (u, v)) \
+                                  for u, v in zip(self.input_cosmo.lon_1[:],
+                                                  self.input_cosmo.lat_1[:])])
+            x_ind, y_ind = np.unravel_index(np.argmin(distances, axis=None), distances.shape)
+            x1, x2 = x_ind - self.patch_size // 2, x_ind + self.patch_size // 2
+            y1, y2 = y_ind - self.patch_size // 2, y_ind + self.patch_size // 2
+            inputs = self.input_cosmo.sel(time=date).sel(x_1=slice(x1, x2), y_1=slice(y1, y2))
             inputs = inputs.drop_vars([v for v in inputs.variables if v not in self.predictors_cosmo])
             new_dim = (
                 inputs.dims['time'], inputs.dims['x_1'], inputs.dims['y_1'], len(inputs))  # Swiss coordinates system...
-            inputs = inputs.to_dataframe()[list(self.predictors_cosmo)].to_numpy().reshape(new_dim)
+            inputs = np.array(inputs.to_dask_dataframe()[list(self.predictors_cosmo)]).reshape(new_dim)
             inputs_to_concatenate.append(inputs)
             return np.concatenate(inputs_to_concatenate, axis=3)
 
@@ -364,8 +360,8 @@ class PointPredictionProcessingCOSMO(object):
 def distance_from_coordinates(z1: Tuple, z2: Tuple):
     """
 
-    :param z1: tuple of longitudes for the 2 places
-    :param z2: tuple of latitudes for the 2 places
+    :param z1: tuple of lon, lat for the first place
+    :param z2: tuple of lon, lat for the second place
     :return: distance between the 2 places in km
     """
     lon1, lat1 = z1
