@@ -1,7 +1,6 @@
 import os
 import pathlib
 import re
-from glob import glob
 from io import StringIO
 from typing import Tuple
 
@@ -228,20 +227,26 @@ class PointPredictionProcessingCOSMO(object):
         date = date.strftime("%Y-%m-%d")
 
         def inputs_rectangle_around_point():
-            inputs_to_concatenate = []
             distances = np.array([distance_from_coordinates((lon_point, lat_point), (u, v)) \
                                   for u, v in zip(self.input_cosmo.lon_1[:],
                                                   self.input_cosmo.lat_1[:])])
-            x_ind, y_ind = np.unravel_index(np.argmin(distances, axis=None), distances.shape)
+            y_ind, x_ind = np.unravel_index(np.argmin(distances, axis=None), distances.shape)
             x1, x2 = x_ind - self.patch_size // 2, x_ind + self.patch_size // 2
             y1, y2 = y_ind - self.patch_size // 2, y_ind + self.patch_size // 2
-            inputs = self.input_cosmo.sel(time=date).sel(x_1=slice(x1, x2), y_1=slice(y1, y2))
-            inputs = inputs.drop_vars([v for v in inputs.variables if v not in self.predictors_cosmo])
-            new_dim = (
-                inputs.dims['time'], inputs.dims['x_1'], inputs.dims['y_1'], len(inputs))  # Swiss coordinates system...
-            inputs = np.array(inputs.to_dask_dataframe()[list(self.predictors_cosmo)]).reshape(new_dim)
-            inputs_to_concatenate.append(inputs)
-            return np.concatenate(inputs_to_concatenate, axis=3)
+            mean = self.input_cosmo.sel(time=date).isel(x_1=slice(x1, x2 + 1), y_1=slice(y1, y2 + 1)).mean(
+                dim=['x_1', 'y_1'])
+            nn = self.input_cosmo.sel(time=date).isel(x_1=x_ind, y_1=y_ind)
+            mean = mean.drop_vars([v for v in mean.variables if v not in self.predictors_cosmo]).to_dataframe()[
+                list(self.predictors_cosmo)].assign(date=pd.to_datetime(date)).reset_index() \
+                .rename(columns={'time': 'hour', 'U_10M': 'U_10M_mean', 'V_10M': 'V_10M_mean'}).assign(
+                datetime=lambda x: x['date'] + pd.to_timedelta(x['hour'], unit='H')).set_index(
+                ['datetime', 'date', 'hour'])
+            nn = nn.drop_vars([v for v in nn.variables if v not in self.predictors_cosmo]).to_dataframe()[
+                list(self.predictors_cosmo)].assign(date=pd.to_datetime(date)).reset_index() \
+                .rename(columns={'time': 'hour'}).assign(
+                datetime=lambda x: x['date'] + pd.to_timedelta(x['hour'], unit='H')).set_index(
+                ['datetime', 'date', 'hour'])
+            return pd.concat([mean, nn], axis=1)
 
         inputs = inputs_rectangle_around_point()
 
@@ -256,18 +261,19 @@ class PointPredictionProcessingCOSMO(object):
                                                    y=slice(lat1, lat2 + 1))
             static_inputs = static_inputs.drop_vars(
                 [v for v in static_inputs.variables if v not in self.static_predictors])
-            new_dim_static = (static_inputs.dims['x'], static_inputs.dims['y'], len(static_inputs))
-            static_inputs = static_inputs.to_dataframe()[list(self.static_predictors)].to_numpy().reshape(
-                new_dim_static)
-            static_inputs = np.repeat(static_inputs[np.newaxis, ...], time_steps, axis=0)
-            return static_inputs
+            static_inputs = static_inputs.to_dataframe()[list(self.static_predictors)]
+            static_inputs_nn = static_inputs.loc[self.patch_size // 2, self.patch_size // 2]
+            static_inputs_nn = pd.concat(
+                [static_inputs_nn.to_frame(name=t).T for t in range(time_steps)]).reset_index().rename(
+                columns={'index': 'hour'}).assign(date=pd.to_datetime(date)) \
+                .assign(datetime=lambda x: x['date'] + pd.to_timedelta(x['hour'], unit='H')).set_index(
+                ['datetime', 'date', 'hour'])
+            return static_inputs_nn
 
         static_inputs = static_inputs_rectangle_around_point()
 
-        dims_i1 = inputs.shape[:-1]
-        dims_i2 = static_inputs.shape[:-1]
-        if dims_i1 == dims_i2:
-            return np.concatenate([inputs, static_inputs], axis=3)
+        if len(static_inputs) == len(inputs):
+            return pd.concat([inputs, static_inputs], axis=1)
         else:
             return None
 
@@ -280,41 +286,41 @@ class PointPredictionProcessingCOSMO(object):
         input_dates = np.array(pd.to_datetime(self.input_cosmo.time.data).normalize().unique().sort_values())
         # one file per day
         for date in pd.DatetimeIndex(self.output.date).unique().sort_values():
-            inputs = []
-            outputs = []
+            data = []
             # checks if data in input
             if date in input_dates:
                 print(f"Processing {date}")
-                num_stations = 0
-                output_for_date = self.output[self.output.date == date]
-                output_for_date['datetime'] = pd.to_datetime(output_for_date['datetime'])
-                output_for_date = output_for_date.sort_values('datetime')
-                complete_stations = output_for_date.groupby(station_column)['datetime'].nunique() == 24
-                output_for_date = output_for_date[
-                    output_for_date[station_column].isin(complete_stations[complete_stations].index)]
-                for s in sorted(output_for_date[station_column].unique()):
-                    output = output_for_date[output_for_date[station_column] == s]
-                    longitude = float(output[lon_column].unique())
-                    latitude = float(output[lat_column].unique())
-                    new_output = np.asarray(output[list(self.variables_to_predict)]).reshape(len(output), 1, 1, len(
-                        self.variables_to_predict))
-                    hours, lons, lats, _ = new_output.shape
-                    if hours != 24:
-                        continue
-                    new_input = self.create_patch_for_point(date, longitude, latitude)
-                    if new_input is None:
-                        continue
-                    _, lons, lats, _ = new_input.shape
-                    if lons != self.patch_size or lats != self.patch_size:
-                        continue
-                    inputs.append(new_input)
-                    outputs.append(new_output)
-                    num_stations += 1
-                print(f"Processed {num_stations} stations")
+                date_str = date.strftime('%Y%m%d')
+                if not os.path.isfile(f'{self.path_to_output}/x_{date_str}.csv'):
+                    num_stations = 0
+                    output_for_date = self.output[self.output.date == date]
+                    output_for_date['datetime'] = pd.to_datetime(output_for_date['datetime'])
+                    output_for_date = output_for_date.sort_values('datetime')
+                    complete_stations = output_for_date.groupby(station_column)['datetime'].nunique() == 24
+                    output_for_date = output_for_date[
+                        output_for_date[station_column].isin(complete_stations[complete_stations].index)]
+                    for s in sorted(output_for_date[station_column].unique()):
+                        output = output_for_date[output_for_date[station_column] == s]
+                        longitude = float(output[lon_column].unique())
+                        latitude = float(output[lat_column].unique())
+                        new_output = output.assign(station_column = s).set_index(['datetime', station_column])[list(self.variables_to_predict)].dropna(subset=['u10', 'v10'])
+                        hours = len(new_output)
+                        if hours != 24:
+                            continue
+                        new_input = self.create_patch_for_point(date, longitude, latitude)
+                        if new_input is None:
+                            continue
+                        new_input[station_column] = s
+                        new_input = new_input.reset_index().set_index(['datetime', station_column])
+                        data_stat = pd.concat([new_input, new_output],axis=1)
+                        data.append(data_stat)
+                        num_stations += 1
+                    print(f"Processed {num_stations} stations")
+                    pd.concat(data, axis=0).to_csv(f'{self.path_to_output}/x_{date_str}.csv')
+                else:
+                    print(f'Date {date} has been processed already.')
             else:
                 print(f'Date {date} has no complete match in inputs, cannot synchronize data.')
-            np.save(np.asarray(inputs), f'{self.path_to_output}/x_{date}.npy')
-            np.save(np.asarray(outputs), f'{self.path_to_output}/y_{date}.npy')
 
     def get_input_output_dataframe_from_array(self, path_to_arrays, aggregation_method='nearest'):
         obs = self.output
@@ -510,12 +516,21 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 
 
 if __name__ == '__main__':
+    import time
     DATA_ROOT = pathlib.Path(__file__).parent.parent.parent / 'data'
-    COSMO1_DATA_FOLDER = glob(DATA_ROOT + 'COSMO1/*.nc')
-    DEM_DATA_FILE = glob(DATA_ROOT + 'dem/topo*.nc')
-    PROCESSED_DATA_FOLDER = DATA_ROOT + 'point_prediction_files'
-    output = pd.read_csv(DATA_ROOT + 'MS_observations/wind_2016_2021_processed.csv')
-    ppp = PointPredictionProcessingCOSMO(path_to_cosmo_input=COSMO1_DATA_FOLDER, path_to_static_input=DEM_DATA_FILE,
-                                         output=output, start_period=pd.to_datetime('2017-09-01'),
-                                         end_period=pd.to_datetime('2018-04-01'))
-    ppp.get_input_and_output_arrays()
+    PROCESSED_DATA_FOLDER = DATA_ROOT.joinpath('point_prediction_files')
+    start_period = pd.to_datetime('2017-09-01')
+    end_period = pd.to_datetime('2018-04-01')
+    DEM_DATA_FILE = str(DATA_ROOT.joinpath('dem')) + '/topo*.nc'
+    output = pd.read_csv(str(DATA_ROOT.joinpath('MS_observations/wind_2016_2021_processed').with_suffix('.csv')))
+    output['date'] = pd.to_datetime(output['date'])
+    to_concat = []
+    for date in pd.date_range(start_period, end_period):
+        start = time.time()
+        d_str = date.strftime('%Y%m%d')
+        csv = pd.read_csv(f'{PROCESSED_DATA_FOLDER}/x_{d_str}.csv')
+        csv = csv.assign(month = lambda x: x['date'].str[5:7].astype(int))
+        csv = csv.set_index(['datetime', 'station'])
+        to_concat.append(csv)
+    concat = pd.concat(to_concat)
+    concat.to_csv(f'{PROCESSED_DATA_FOLDER}/dataframe_6months.csv')
