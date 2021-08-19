@@ -12,18 +12,14 @@ checkpoints
 
 # Data files and such
 ./data
+data
+tex
+plots
+docs
+results
 *.npy
 *.nc
 *.png
 *.gif
 *.tif
 *.RData
-
-# TeX compilation
-*.aux
-*.bbl
-*.blg
-*.log
-*.out
-*.synctex.gz
-*.toc
