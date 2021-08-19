@@ -303,7 +303,8 @@ class PointPredictionProcessingCOSMO(object):
                         output = output_for_date[output_for_date[station_column] == s]
                         longitude = float(output[lon_column].unique())
                         latitude = float(output[lat_column].unique())
-                        new_output = output.assign(station_column = s).set_index(['datetime', station_column])[list(self.variables_to_predict)].dropna(subset=['u10', 'v10'])
+                        new_output = output.assign(station_column=s).set_index(['datetime', station_column])[
+                            list(self.variables_to_predict)].dropna(subset=['u10', 'v10'])
                         hours = len(new_output)
                         if hours != 24:
                             continue
@@ -312,7 +313,7 @@ class PointPredictionProcessingCOSMO(object):
                             continue
                         new_input[station_column] = s
                         new_input = new_input.reset_index().set_index(['datetime', station_column])
-                        data_stat = pd.concat([new_input, new_output],axis=1)
+                        data_stat = pd.concat([new_input, new_output], axis=1)
                         data.append(data_stat)
                         num_stations += 1
                     print(f"Processed {num_stations} stations")
@@ -477,7 +478,8 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
     end_date = pd.to_datetime(end_date)
     print(f'Reading DEM data files')
     inputs_topo = xr.open_mfdataset(pathlib.Path(DEM_data_path).glob('topo*.nc'))
-    topo_vars_to_drop = [v for v in inputs_topo.variables if v not in topo_variables_included]
+    topo_vars_to_drop = [v for v in inputs_topo.variables if
+                         v not in topo_variables_included + tuple(inputs_topo._coord_names)]
     for d in pd.date_range(start_date, end_date):
         # Downloading saved inputs
         d_str = d.strftime('%Y%m%d')
@@ -487,7 +489,8 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             print(f'Reading data files for day {d}')
             print(f'Reading COSMO1 data files')
             cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'{d_str}*.nc')).sel(time=d_str)
-            cosmo_vars_to_drop = [v for v in cosmo.variables if v not in cosmo_variables_included]
+            cosmo_vars_to_drop = [v for v in cosmo.variables if
+                                  v not in cosmo_variables_included + tuple(cosmo._coord_names)]
             outputs = cosmo.drop_vars(cosmo_vars_to_drop)
             print('Adjusting resolution to COSMO1 image size')
             temp_inputs_topo = inputs_topo \
@@ -495,11 +498,13 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             print(f'Reading and Interpolating linearly ERA5 data to fit the topographic data resolution')
             inputs_surface = xr.open_mfdataset(pathlib.Path(ERA5_data_path).glob(f'{d_str}*surface*.nc')).sel(
                 time=d_str).sel(longitude=cosmo.lon_1, latitude=cosmo.lat_1, method='nearest')
-            surface_vars_to_drop = [v for v in inputs_surface.variables if v not in surface_variables_included]
+            surface_vars_to_drop = [v for v in inputs_surface.variables if
+                                    v not in surface_variables_included + tuple(inputs_surface._coord_names)]
             inputs_surface = inputs_surface.drop_vars(surface_vars_to_drop)
             inputs_z500 = xr.open_mfdataset(pathlib.Path(ERA5_data_path).glob(f'{d_str}*z500*.nc')).sel(
                 time=d_str).sel(longitude=cosmo.lon_1, latitude=cosmo.lat_1, method='nearest')
-            z500_vars_to_drop = [v for v in inputs_z500.variables if v not in z500_variables_included]
+            z500_vars_to_drop = [v for v in inputs_z500.variables if
+                                 v not in z500_variables_included + tuple(inputs_z500._coord_names)]
             inputs_z500 = inputs_z500.drop_vars(z500_vars_to_drop)
             # Replicate static inputs for time series concordance
             time_steps = inputs_surface.time.shape
@@ -513,24 +518,3 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             outputs.to_netcdf(y_path)
         else:
             print(f'Inputs and outputs for date {d_str} have already been processed.')
-
-
-if __name__ == '__main__':
-    import time
-    DATA_ROOT = pathlib.Path(__file__).parent.parent.parent / 'data'
-    PROCESSED_DATA_FOLDER = DATA_ROOT.joinpath('point_prediction_files')
-    start_period = pd.to_datetime('2017-09-01')
-    end_period = pd.to_datetime('2018-04-01')
-    DEM_DATA_FILE = str(DATA_ROOT.joinpath('dem')) + '/topo*.nc'
-    output = pd.read_csv(str(DATA_ROOT.joinpath('MS_observations/wind_2016_2021_processed').with_suffix('.csv')))
-    output['date'] = pd.to_datetime(output['date'])
-    to_concat = []
-    for date in pd.date_range(start_period, end_period):
-        start = time.time()
-        d_str = date.strftime('%Y%m%d')
-        csv = pd.read_csv(f'{PROCESSED_DATA_FOLDER}/x_{d_str}.csv')
-        csv = csv.assign(month = lambda x: x['date'].str[5:7].astype(int))
-        csv = csv.set_index(['datetime', 'station'])
-        to_concat.append(csv)
-    concat = pd.concat(to_concat)
-    concat.to_csv(f'{PROCESSED_DATA_FOLDER}/dataframe_6months.csv')

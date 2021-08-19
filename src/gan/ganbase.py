@@ -1,12 +1,8 @@
-import time
-from itertools import islice
 from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras import callbacks
-
-from data.data_generator import NoiseGenerator
 
 
 class GANCheckpoint(callbacks.ModelCheckpoint):
@@ -17,75 +13,112 @@ class GANCheckpoint(callbacks.ModelCheckpoint):
 
     def _save_model(self, epoch, logs):
         # save both the generator and the discriminator
-        outfile = str(self.save_dir / 'generator' / self.filepath.format(epoch=epoch+1))
+        outfile = str(self.save_dir / 'generator' / self.filepath.format(epoch=epoch + 1))
         self.gan.generator.save(outfile, overwrite=True, options=self._options)
         outfile = str(self.save_dir / 'discriminator' / self.filepath.format(epoch=epoch + 1))
         self.gan.discriminator.save(outfile, overwrite=True, options=self._options)
 
 
-# This annotation causes the function to be "compiled".
-# @tf.function
-def train_step(gan, training_inputs, noise_init, noise_update, train_disc=True):
-        inputs, outputs = training_inputs
-
-        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-            generated_images = gan.generator([inputs, noise_init[:,0,...], noise_update], training=True)
-
-            real_output = gan.discriminator([inputs, outputs], training=train_disc)
-            fake_output = gan.discriminator([inputs, generated_images], training=train_disc)
-
-            gen_loss = gan.generator.loss(fake_output)
-            disc_loss = gan.discriminator.loss(real_output, fake_output)
-
-        gradients_of_generator = gen_tape.gradient(gen_loss, gan.generator.trainable_variables)
-        gan.generator.optimizer.apply_gradients(zip(gradients_of_generator, gan.generator.trainable_variables))
-
-        if train_disc:
-            gradients_of_discriminator = disc_tape.gradient(disc_loss, gan.discriminator.trainable_variables)
-            gan.discriminator.optimizer.apply_gradients(zip(gradients_of_discriminator, gan.discriminator.trainable_variables))
-
-        return {'generator_loss': gen_loss, 'discriminator_loss': disc_loss}
-
-
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model,
-                 noise_dim, initial_state, gen_disc_ratio: int = 1):
-        super().__init__()
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, *args, **kwargs):
+        super(GAN, self).__init__(*args, **kwargs)
         self.generator = generator
         self.discriminator = discriminator
-        self.noise_dim = noise_dim
-        self.initial_state = initial_state
-        checkpoint = GANCheckpoint('./checkpoints', 'weights-{epoch:02d}.hdf5', model=self, verbose=1)
-        board = callbacks.TensorBoard(update_freq=1, profile_batch=(2, 100))
-        self.callback_list = callbacks.CallbackList([checkpoint, board], add_history=True, add_progbar=True, model=self)
-        self.gen_disc_ratio = gen_disc_ratio
+        self.noise_generator = noise_generator
+        self._steps_per_execution = tf.convert_to_tensor(1)
 
-    def train(self, dataset, epochs, batches_per_epoch=None, verbose=False):
-        self.callback_list.set_params(dict(verbose=verbose, epochs=epochs, steps=batches_per_epoch))
-        self.callback_list.on_train_begin()
-        batch_per_epoch = batches_per_epoch or dataset.input_sequences.shape[0] // dataset.batch_size
-        for epoch in range(epochs):
-            start = time.time()
-            self.callback_list.on_epoch_begin(epoch)
+    def _assert_compile_was_called(self):
+        return self.generator._assert_compile_was_called() and self.discriminator._assert_compile_was_called()
 
-            for i, image_batch in enumerate(islice(dataset, batch_per_epoch)):
-                self.callback_list.on_train_batch_begin(i)
-                batch_start = time.time()
-                inputs, outputs = image_batch
-                batch_size, t, x, y = inputs.shape[:-1]
-                noise_update = NoiseGenerator((batch_size, t, x, y, self.noise_dim))()
-                noise_init = NoiseGenerator((batch_size, 1, x, y, self.noise_dim))()
-                losses = train_step(self, image_batch, noise_init, noise_update, train_disc=i % self.gen_disc_ratio == 0)
-                self.callback_list.on_train_batch_end(i, logs=losses)
-                if i >= batch_per_epoch:
-                    break
+    def train_step(self, data):
+        # data = tf.keras.engine.data_adapter.expand_1d(data)
+        low_res, high_res, sample_weight = tf.keras.utils.unpack_x_y_sample_weight(data)
+        batch_size = tf.shape(low_res)[0]
+        # Run forward pass on the discriminator
+        noise = self.noise_generator(batch_size)
+        fake_high_res = self.generator([low_res, noise], training=False)
 
-            self.callback_list.on_epoch_end(epoch)
-        self.callback_list.on_train_end()
+        # Combine true (1) and fake (0) outputs
+        # combined_high_res = tf.concat([high_res, fake_high_res], axis=0)
+        # combined_low_res = tf.concat([low_res, low_res], axis=0)
+        # combined_labels = tf.concat([tf.ones((batch_size, 1)), tf.zeros((batch_size, 1))], axis=0)
+        # Add a small noise to the labels
+        # combined_labels += 0.01 * tf.random.uniform(tf.shape(combined_labels))
 
-    def build(self, input_shape):
-        out_shape = self.generator.build(input_shape)
-        self.discriminator.build([input_shape, out_shape])
+        gamma = 10
+        combined_high_res = (high_res + fake_high_res) / 2
+
+        with tf.GradientTape() as reg_tape:
+            reg_tape.watch(combined_high_res)
+            out = self.discriminator([low_res, combined_high_res], training=False)
+            # value_reg = 10 * tf.square(tf.reduce_sum(out))
+        gradients = reg_tape.gradient(out, combined_high_res)
+        # gradients = reg_tape.gradient(out, self.discriminator.trainable_weights)
+        gradients = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2, 3]))
+        # gradients = tf.concat([tf.reshape(g, (-1,)) for g in gradients], axis=0)
+        gradient_reg = gamma * tf.reduce_mean((gradients - 1) ** 2)
+
+        with tf.GradientTape() as disc_tape:
+            true_predictions = self.discriminator([low_res, high_res], training=True)
+            fake_predictions = self.discriminator([low_res, fake_high_res], training=True)
+            disc_loss = self.discriminator.compiled_loss(true_predictions, fake_predictions, sample_weight,
+                                                         regularization_losses=[gradient_reg])
+            # predictions = self.discriminator([combined_low_res, combined_high_res], training=True)
+            # disc_loss = self.discriminator.compiled_loss(combined_labels, predictions, sample_weight,
+            #                                              regularization_losses=self.losses)
+
+        # Run discriminator backward pass
+        grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
+        self.discriminator.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
+        # self.discriminator.optimizer.minimize(disc_loss, self.discriminator.trainable_variables, tape=disc_tape)
+        # self.discriminator.compiled_metrics.update_state(combined_labels, predictions, sample_weight)
+
+        # Run forward pass on generator using the discriminator to evaluate loss
+        noise = self.noise_generator(batch_size)
+
+        # For the generator, images should be predicted as true (1)
+        # labels = tf.ones((batch_size, 1))
+
+        with tf.GradientTape() as gen_tape:
+            fake_high_res = self.generator([low_res, noise], training=True)
+            fake_predictions = self.discriminator([low_res, fake_high_res], training=False)
+            gen_loss = self.discriminator.compiled_loss(true_predictions, fake_predictions, sample_weight,
+                                                        # regularization_losses=self.losses
+                                                        )
+        # Run generator backward pass
+        grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
+        self.generator.optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
+        # self.generator.optimizer.minimize(gen_loss, self.generator.trainable_variables, tape=gen_tape)
+        # self.generator.compiled_metrics.update_state(labels, fake_predictions, sample_weight)
+
+        # Collect metrics to return
+        return_metrics = {'loss': (gen_loss + disc_loss) / 2, 'd_loss': disc_loss, 'g_loss': gen_loss}
+        for metric in self.metrics:
+            result = metric.result()
+            if isinstance(result, dict):
+                return_metrics.update(result)
+            else:
+                return_metrics[metric.name] = result
+        return return_metrics
+
+    def test_step(self, data):
+        x, y, sample_weight = tf.keras.utils.unpack_x_y_sample_weight(data)
+        batch_size = tf.shape(x)[0]
+        noise = self.noise_generator(batch_size)
+        generated = self.generator([x, noise], training=False)
+        pred_labels = self.discriminator([x, generated], training=False)
+        true_labels = tf.ones((batch_size, 1))
+        loss = self.discriminator.compiled_loss(true_labels, pred_labels)
+
+        # Collect metrics to return
+        return_metrics = {'loss': loss}
+        for metric in self.metrics:
+            result = metric.result()
+            if isinstance(result, dict):
+                return_metrics.update(result)
+            else:
+                return_metrics[metric.name] = result
+        return return_metrics
 
     def compile(self,
                 generator_optimizer,

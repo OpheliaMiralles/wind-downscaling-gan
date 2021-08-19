@@ -1,7 +1,7 @@
 from tensorflow_gan import gan_model, gan_train, gan_loss, gan_train_ops
 from tensorflow_gan.python.estimator import GANEstimator
 
-from data_generator import BatchGenerator, NaiveDecoder
+from data.data_generator import BatchGenerator, NaiveDecoder
 from models import make_generator_model, make_discriminator_model
 from train import retrieve_data, generator_loss, discriminator_loss, generator_optimizer, discriminator_optimizer
 
@@ -22,7 +22,3 @@ def make_estimator():
     data = BatchGenerator(x_train, y_train, NaiveDecoder())
     gan_estimator.train(data, steps=1)
     return gan_estimator
-
-
-if __name__ == '__main__':
-    make_estimator()

@@ -1,143 +1,124 @@
-import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, UpSampling2D
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import GlobalAveragePooling2D
-from tensorflow.keras.layers import Input, Concatenate
-from tensorflow.keras.layers import LeakyReLU
-from tensorflow.keras.layers import MaxPool2D
-from tensorflow.keras.layers import TimeDistributed, Lambda
+from math import log2
+
+import tensorflow.keras.layers as kl
 from tensorflow.keras.models import Model
-from tensorflow.python.keras.layers import ConvLSTM2D
-
-from gan.blocks import res_block
-from gan.layers import ReflectionPadding2D
-from gan.rnn import ConvGRU, ConvGate, PaddingGate
 
 
-def make_generator_model(in_channels=1, out_channels=1, num_timesteps=8, num_res_blocks=3, image_size=(None, None),
-                         noise_channels=None):
-    initial_state = Input(shape=(*image_size, 256))
-    noise = Input(shape=(num_timesteps, *image_size, noise_channels), name="noise")
-    low_res_image = Input(shape=(num_timesteps, *image_size, in_channels), name="low_res_image")
-    inputs = [low_res_image, initial_state, noise]
+def make_generator(
+        image_size: int,
+        in_channels: int,
+        noise_channels: int,
+        out_channels: int,
+        n_timesteps: int,
+        batch_size: int = None,
+        feature_channels=128
+):
+    # Make sure we have nice powers of 2 everywhere
+    assert log2(image_size).is_integer()
+    assert log2(feature_channels).is_integer()
+    total_in_channels = in_channels + noise_channels
+    # assert log2(total_in_channels).is_integer(), f'Incompatible channels: {in_channels} and {noise_channels}'
 
-    xt = TimeDistributed(ReflectionPadding2D(padding=(1, 1)))(low_res_image)
-    xt = TimeDistributed(Conv2D(256 - noise.shape[-1], kernel_size=(3, 3)))(xt)
-    xt = Concatenate()([xt, noise])
-    for i in range(num_res_blocks):
-        xt = res_block(256, time_dist=True, activation='relu')(xt)
+    img_shape = (image_size, image_size)
+    tshape = (n_timesteps,) + img_shape
+    input_image = kl.Input(shape=tshape + (in_channels,), batch_size=batch_size, name='input_image')
+    input_noise = kl.Input(shape=tshape + (noise_channels,), batch_size=batch_size, name='input_noise')
 
-    x = ConvGRU(
-        initial_state.shape[1:],
-        update_gate=ConvGate(),
-        reset_gate=ConvGate(),
-        output_gate=ConvGate(activation='linear'),
-        return_sequences=True,
-    )(xt, initial_state)
+    # Concatenate inputs
+    x = kl.Concatenate()([input_image, input_noise])
 
-    block_channels = [256, 256, 128, 64, 32]
-    for (i, channels) in enumerate(block_channels):
-        if i > 0:
-            x = TimeDistributed(UpSampling2D(interpolation='bilinear'))(x)
-        x = res_block(channels, time_dist=True, activation='leakyrelu')(x)
+    # Add features and decrease image size - in 2 steps
+    intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
 
-    x = TimeDistributed(ReflectionPadding2D(padding=(1, 1)))(x)
-    img_out = TimeDistributed(Conv2D(out_channels, kernel_size=(3, 3), activation='sigmoid'))(x)
+    x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
+    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (3, 3), strides=2, activation='relu'))(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, intermediate_features)
+    res_2 = x  # Keep residuals for later
 
-    # img_out = TimeDistributed(MaxPool2D(48))(img_out)
+    x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
+    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (3, 3), strides=2, activation='relu'))(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
+    res_4 = x  # Keep residuals for later
 
-    return Model(inputs=inputs, outputs=img_out, name='generator')
+    # Recurrent unit
+    x = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
 
+    # Re-increase image size and decrease features
+    x = kl.TimeDistributed(kl.Conv2D(feature_channels // 2, (3, 3), padding='same', activation='relu'))(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels // 2)
 
-def make_discriminator_model(in_channels=1, out_channels=1, num_timesteps=8, high_res_size=(None, None),
-                             low_res_size=(None, None)):
-    high_res = Input(shape=(num_timesteps, *high_res_size, out_channels), name="high resolution image")
-    low_res = Input(shape=(num_timesteps, *low_res_size, in_channels), name="inputs")
+    # Re-introduce residuals from before (skip connection)
+    x = kl.Concatenate()([x, res_4])
+    x = kl.BatchNormalization()(x)
 
-    x_hr = high_res
-    x_lr = low_res
+    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation='relu'))(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
 
-    # for _ in range(7):
-    #     x_hr = TimeDistributed(UpSampling2D(size=(2, 2)))(x_hr)
+    # Skip connection 2
+    x = kl.Concatenate()([x, res_2])
+    x = kl.BatchNormalization()(x)
 
-    # x_lr = TimeDistributed(UpSampling2D())(x_lr)
-    # x_lr = TimeDistributed(ReflectionPadding2D())(x_lr)
+    if feature_channels / 8 >= out_channels:
+        x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels // 8, (2, 2), strides=2, activation='relu'))(x)
+        assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, feature_channels // 8)
+    else:
+        x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation='relu'))(x)
+        assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
+    x = kl.BatchNormalization()(x)
 
-    block_channels = [32, 64, 128, 256]
-    for (i, channels) in enumerate(block_channels):
-        # x_hr = res_block(channels, time_dist=True, norm="spectral", stride=2)(x_hr)
-        x_hr = res_block(channels, time_dist=True, norm="spectral")(x_hr)
-        x_lr = res_block(channels, time_dist=True, norm="spectral")(x_lr)
+    x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation='relu'))(x)
+    assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
 
-    # x_lr = TimeDistributed(MaxPool2D(3))(x_lr)
-
-    x_joint = Concatenate()([x_lr, x_hr])
-    x_joint = res_block(256, time_dist=True, norm="spectral")(x_joint)
-    x_joint = res_block(256, time_dist=True, norm="spectral")(x_joint)
-
-    x_hr = res_block(256, time_dist=True, norm="spectral")(x_hr)
-    x_hr = res_block(256, time_dist=True, norm="spectral")(x_hr)
-
-    h = Lambda(lambda x: tf.zeros_like(x[:, 0, ...]))
-    x_joint = ConvGRU(
-        x_joint.shape[2:],
-        update_gate=PaddingGate(),
-        reset_gate=PaddingGate(),
-        output_gate=PaddingGate(activation='linear'),
-        return_sequences=True,
-    )([x_joint, h(x_joint)])
-    x_hr = ConvGRU(
-        x_hr.shape[2:],
-        update_gate=PaddingGate(),
-        reset_gate=PaddingGate(),
-        output_gate=PaddingGate(activation='linear'),
-        return_sequences=True,
-    )([x_hr, h(x_hr)])
-
-    x_avg_joint = TimeDistributed(GlobalAveragePooling2D())(x_joint)
-    x_avg_hr = TimeDistributed(GlobalAveragePooling2D())(x_hr)
-
-    x = Concatenate()([x_avg_joint, x_avg_hr])
-    # x = TimeDistributed(SNDense(256))(x)
-    x = TimeDistributed(Dense(256))(x)
-    x = LeakyReLU(0.2)(x)
-
-    # disc_out = TimeDistributed(SNDense(1))(x)
-    disc_out = TimeDistributed(Dense(1))(x)
-
-    disc = Model(inputs=[low_res, high_res], outputs=disc_out, name='discriminator')
-    return disc
+    return Model(inputs=[input_image, input_noise], outputs=x, name='generator')
 
 
-def initial_state_model(num_preproc=3, in_channels=1, noise_channels=None):
-    initial_frame_in = Input(shape=(None, None, in_channels))
-    noise_initial = Input(shape=(None, None, noise_channels), name="noise_initial")
+def make_discriminator(
+        low_res_size: int,
+        high_res_size: int,
+        low_res_channels: int,
+        high_res_channels: int,
+        n_timesteps: int,
+        batch_size: int = None,
+        feature_channels: int = 16
+):
+    assert log2(low_res_size).is_integer()
+    assert log2(high_res_size).is_integer()
 
-    h = ReflectionPadding2D(padding=(1, 1))(initial_frame_in)
-    h = Conv2D(256 - noise_initial.shape[-1], kernel_size=(3, 3))(h)
-    h = Concatenate()([h, noise_initial])
-    for i in range(num_preproc):
-        h = res_block(256, activation='relu')(h)
+    low_res = kl.Input(shape=(n_timesteps, low_res_size, low_res_size, low_res_channels), batch_size=batch_size,
+                       name='low resolution image')
+    high_res = kl.Input(shape=(n_timesteps, high_res_size, high_res_size, high_res_channels), batch_size=batch_size,
+                        name='high resolution image')
+    if tuple(low_res.shape)[:-1] != tuple(high_res.shape)[:-1]:
+        raise NotImplementedError("The discriminator assumes that the low res and high res images have the same size."
+                                  "Perhaps you should upsample your low res image first?")
 
-    return Model(
-        inputs=[initial_frame_in, noise_initial],
-        outputs=h
-    )
+    # First branch: high res only
+    hr = kl.ConvLSTM2D(high_res_channels, (3, 3), padding='same', return_sequences=True)(high_res)
+    hr = kl.TimeDistributed(kl.Conv2D(feature_channels, (3, 3), padding='same', activation='relu'))(hr)
 
+    # Second branch: Mix both inputs
+    mix = kl.Concatenate()([low_res, high_res])
+    mix = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(mix)
+    mix = kl.TimeDistributed(kl.Conv2D(feature_channels, (3, 3), padding='same', activation='relu'))(mix)
 
-def generator_initialized(gen, init_model,
-                          in_channels=1, num_timesteps=8, noise_channels=None):
-    noise_initial = Input(shape=(None, None, noise_channels),
-                          name="noise_init")
-    noise_update = Input(shape=(num_timesteps, None, None, noise_channels),
-                         name="noise_update")
-    low_res = Input(shape=(num_timesteps, None, None, in_channels),
-                    name="low_res_image")
-    inputs = [low_res, noise_initial, noise_update]
+    # Merge everything together
+    x = kl.Concatenate()([hr, mix])
+    assert tuple(x.shape) == (batch_size, n_timesteps, low_res_size, low_res_size, 2 * feature_channels)
 
-    initial_state = init_model([low_res[:, 0, ...], noise_initial])
-    img_out = gen([low_res, initial_state, noise_update])
+    def img_size(z):
+        return z.shape[2]
 
-    model = Model(inputs=inputs, outputs=img_out, name='generator_initialized')
+    def channels(z):
+        return z.shape[-1]
 
-    return model
+    while img_size(x) >= 4:
+        x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
+        x = kl.TimeDistributed(kl.Conv2D(channels(x) * 2, (5, 5), strides=2, activation='relu'))(x)
+    while img_size(x) > 1:
+        x = kl.TimeDistributed(kl.Conv2D(channels(x) * 2, (3, 3), strides=2, activation='relu'))(x)
+
+    assert tuple(x.shape)[:-1] == (batch_size, n_timesteps, 1, 1)  # Unknown number of channels
+    x = kl.TimeDistributed(kl.Dense(1))(x)
+
+    return Model(inputs=[low_res, high_res], outputs=x, name='discriminator')

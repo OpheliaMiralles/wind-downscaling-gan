@@ -14,7 +14,7 @@ def download_COSMO1(username, password, datapath, start_date, end_date):
     datapath = Path(datapath)
     datapath.mkdir(exist_ok=True)
     with FTP('giub-torrent.unibe.ch', username, password, timeout=200) as c:
-        c.cwd('COSMO-1')
+        c.cwd('COSMO-1_test')
         all_files = []
         c.retrlines('NLST', all_files.append)
         for d in pd.date_range(start_date, end_date):

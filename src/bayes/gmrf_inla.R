@@ -5,7 +5,7 @@
 
 library(INLA)
 inla.pardiso.check()
-data.path <- "/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/data/point_prediction_files/dataframe_6months.csv"
+data.path <- "/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/data/point_prediction_files_/dataframe_6months.csv"
 out.data <- read.csv(data.path)
 loc <- cbind(out.data$lon, out.data$lat)
 bnd1 <- inla.nonconvex.hull(loc, convex = 0.05)
@@ -97,4 +97,4 @@ return(invisible(plots))
 }
 
 plots <- ggplot_inla_residuals(p.res, observed)
-save.image("/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/results/INLA/simple_regression_with_randomeffect.RData")
+save.image("/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/results/INLA/univariate_regression_with_randomeffect.RData")
