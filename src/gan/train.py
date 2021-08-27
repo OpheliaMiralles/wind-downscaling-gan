@@ -6,8 +6,8 @@ def discriminator_loss(real_output, fake_output):
 
 
 def generator_optimizer():
-    return tf.keras.optimizers.Adam()
+    return tf.keras.optimizers.Adam(lr=0.0001)
 
 
 def discriminator_optimizer():
-    return tf.keras.optimizers.Adam(0.1)
+    return tf.keras.optimizers.Adam(lr=0.0001)

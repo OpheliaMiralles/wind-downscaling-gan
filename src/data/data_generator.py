@@ -104,16 +104,15 @@ class _BatchGenerator(object):
 
         def crop_to_array(x, variables):
             variables_and_coords = ['time', x_coord, y_coord] + variables
-            new_time = np.arange(0, len(x.time), 1)
-            x = x.assign_coords({'time': new_time})
-            return np.asarray(
-                x.isel({
-                    'time': slice(random_time, random_time + self.sequence_length),
-                    x_coord: slice(random_x_coord, random_x_coord + self.patch_length_pixel),
-                    y_coord: slice(random_y_coord, random_y_coord + self.patch_length_pixel)
-                })[variables_and_coords]  # only keep the relevant data
-                    .to_dask_dataframe()[variables]  # ensure the variables are ordered as requested
-            ).reshape((self.sequence_length, self.patch_length_pixel, self.patch_length_pixel, -1))
+            patch = x.isel({
+                'time': slice(random_time, random_time + self.sequence_length),
+                x_coord: slice(random_x_coord, random_x_coord + self.patch_length_pixel),
+                y_coord: slice(random_y_coord, random_y_coord + self.patch_length_pixel)
+            })[variables_and_coords]
+            to_stack = []
+            for v in variables:
+                to_stack.append(patch[v].to_numpy())
+            return np.stack(to_stack, axis=-1)
 
         return crop_to_array(X, self.input_variables), crop_to_array(Y, self.output_variables)
 

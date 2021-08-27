@@ -1,12 +1,9 @@
-import shutil
-from pathlib import Path
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras.callbacks as cb
 from tensorflow.keras import layers, losses
 from tensorflow.keras.layers import LeakyReLU, BatchNormalization
 from tensorflow.keras.models import Model
-from tensorflow.python.keras.layers import TimeDistributed, ConvLSTM2D
+from tensorflow.python.keras.layers import TimeDistributed
 
 
 class AutoEncoder(Model):
@@ -21,22 +18,16 @@ class AutoEncoder(Model):
             TimeDistributed(BatchNormalization()),
             TimeDistributed(layers.Conv2D(interm1, (3, 3), activation=LeakyReLU(0.2), padding='same')),
             TimeDistributed(BatchNormalization()),
-            # ConvLSTM2D(filters=interm1, kernel_size=3, strides=1, padding='same', activation='tanh',
-            #            recurrent_activation='sigmoid', return_sequences=True),
             TimeDistributed(layers.Conv2D(nb_channels_out, (3, 3), activation=LeakyReLU(0.2), padding='same')),
-            # TimeDistributed(BatchNormalization()),
         ], 'encoder')
 
         self.decoder = tf.keras.Sequential([
             layers.Input(shape=(time_steps, img_size, img_size, nb_channels_out)),
-            # ConvLSTM2D(filters=interm1, kernel_size=3, strides=1, padding='same', activation='tanh',
-            #            recurrent_activation='sigmoid', return_sequences=True),
             TimeDistributed(layers.Conv2D(interm1, (3, 3), activation=LeakyReLU(0.2), padding='same')),
             TimeDistributed(BatchNormalization()),
             TimeDistributed(layers.Conv2D(interm2, (3, 3), activation=LeakyReLU(0.2), padding='same')),
             TimeDistributed(BatchNormalization()),
             TimeDistributed(layers.Conv2D(nb_channels_in, (3, 3), activation=LeakyReLU(0.2), padding='same')),
-            # TimeDistributed(BatchNormalization()),
         ], 'decoder')
 
     def call(self, x):

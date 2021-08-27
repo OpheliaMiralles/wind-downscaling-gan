@@ -2,21 +2,6 @@ from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.keras import Model
-from tensorflow.keras import callbacks
-
-
-class GANCheckpoint(callbacks.ModelCheckpoint):
-    def __init__(self, save_dir, filepath, model, *args, **kwargs):
-        super(GANCheckpoint, self).__init__(filepath, *args, **kwargs)
-        self.gan = model
-        self.save_dir = Path(save_dir)
-
-    def _save_model(self, epoch, logs):
-        # save both the generator and the discriminator
-        outfile = str(self.save_dir / 'generator' / self.filepath.format(epoch=epoch + 1))
-        self.gan.generator.save(outfile, overwrite=True, options=self._options)
-        outfile = str(self.save_dir / 'discriminator' / self.filepath.format(epoch=epoch + 1))
-        self.gan.discriminator.save(outfile, overwrite=True, options=self._options)
 
 
 class GAN(Model):
@@ -129,3 +114,13 @@ class GAN(Model):
         super().compile(**kwargs)
         self.generator.compile(generator_optimizer, generator_loss)
         self.discriminator.compile(discriminator_optimizer, discriminator_loss)
+
+    def save_weights(self, filepath, *args, **kwargs):
+        self.generator.save_weights(Path(filepath) / 'generator', *args, **kwargs)
+        self.discriminator.save_weights(Path(filepath) / 'discriminator', *args, **kwargs)
+
+    def load_weights(self,
+                     filepath,
+                     *args, **kwargs):
+        self.generator.load_weights(Path(filepath) / 'generator', *args, **kwargs)
+        self.discriminator.load_weights(Path(filepath) / 'discriminator', *args, **kwargs)
