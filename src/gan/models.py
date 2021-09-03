@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow.keras.layers as kl
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.layers import LeakyReLU, BatchNormalization
+from tensorflow_addons.layers import SpectralNormalization
 
 
 def make_generator(
@@ -33,12 +34,14 @@ def make_generator(
     intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
 
     x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
-    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (3, 3), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(
+        SpectralNormalization(kl.Conv2D(intermediate_features, (3, 3), strides=2, activation=LeakyReLU(0.2))))(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, intermediate_features)
     res_2 = x  # Keep residuals for later
 
     x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (3, 3), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(
+        SpectralNormalization(kl.Conv2D(feature_channels, (3, 3), strides=2, activation=LeakyReLU(0.2))))(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
     res_4 = x  # Keep residuals for later
 
@@ -47,14 +50,17 @@ def make_generator(
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
 
     # Re-increase image size and decrease features
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels // 2, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(
+        SpectralNormalization(kl.Conv2D(feature_channels // 2, (3, 3), padding='same', activation=LeakyReLU(0.2))))(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels // 2)
 
     # Re-introduce residuals from before (skip connection)
     x = kl.Concatenate()([x, res_4])
     x = kl.BatchNormalization()(x)
 
-    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(
+        SpectralNormalization(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2))))(
+        x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
 
     # Skip connection 2
@@ -62,14 +68,17 @@ def make_generator(
     x = kl.BatchNormalization()(x)
 
     if feature_channels / 8 >= out_channels:
-        x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels // 8, (2, 2), strides=2, activation='relu'))(x)
+        x = kl.TimeDistributed(SpectralNormalization(
+            kl.Conv2DTranspose(feature_channels // 8, (2, 2), strides=2, activation=LeakyReLU(0.2))))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, feature_channels // 8)
     else:
-        x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
+        x = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2))))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
-    x = kl.BatchNormalization()(x)
 
-    x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(
+        SpectralNormalization(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2))),
+        name='predicted_image')(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
 
     return Model(inputs=[input_image, input_noise], outputs=x, name='generator')
@@ -118,7 +127,7 @@ def make_discriminator(
 
     while img_size(x) >= 4:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
-        x = kl.TimeDistributed(kl.Conv2D(channels(x) * 2, (5, 5), strides=2, activation=LeakyReLU(0.2)))(x)
+        x = kl.TimeDistributed(kl.Conv2D(channels(x) * 2, (7, 7), strides=3, activation=LeakyReLU(0.2)))(x)
         x = kl.TimeDistributed(BatchNormalization())(x)
 
     while img_size(x) > 1:
@@ -126,8 +135,8 @@ def make_discriminator(
         x = kl.TimeDistributed(BatchNormalization())(x)
 
     assert tuple(x.shape)[:-1] == (batch_size, n_timesteps, 1, 1)  # Unknown number of channels
+    x = tf.squeeze(x, [2, 3])
     x = kl.TimeDistributed(kl.Dense(1, activation='linear'))(x)
-    x = tf.squeeze(x)
-    x = kl.GlobalAveragePooling1D()(x)
+    x = kl.GlobalAveragePooling1D(name='score')(x)
 
     return Model(inputs=[low_res, high_res], outputs=x, name='discriminator')

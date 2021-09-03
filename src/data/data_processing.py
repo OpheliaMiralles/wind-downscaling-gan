@@ -485,7 +485,17 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
         d_str = d.strftime('%Y%m%d')
         x_path = pathlib.Path(path_to_processed_files, f'x_{d_str}').with_suffix('.nc')
         y_path = pathlib.Path(path_to_processed_files, f'y_{d_str}').with_suffix('.nc')
-        if not os.path.isfile(x_path):
+        all_inputs_there = False
+        if os.path.isfile(x_path):
+            inputs = xr.open_mfdataset(str(x_path))
+            variables = [v for v in inputs.variables if v not in ['lat_1', 'lon_1', 'time', 'x_1', 'y_1',
+                                                                  'longitude', 'latitude',
+                                                                  'x', 'y']]
+            all_inputs = set(z500_variables_included + surface_variables_included + topo_variables_included)
+            if set(np.intersect1d(list(all_inputs), variables)) == all_inputs:
+                all_inputs_there = True
+                print(f'Inputs and outputs for date {d_str} have already been processed.')
+        if not all_inputs_there:
             print(f'Reading data files for day {d}')
             print(f'Reading COSMO1 data files')
             cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'{d_str}*.nc')).sel(time=d_str)
@@ -516,5 +526,3 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             full_data = xr.merge([inputs_surface, inputs_z500, static_inputs])
             full_data.to_netcdf(x_path)
             outputs.to_netcdf(y_path)
-        else:
-            print(f'Inputs and outputs for date {d_str} have already been processed.')

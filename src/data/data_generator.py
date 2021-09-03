@@ -175,6 +175,25 @@ class NoiseGenerator(object):
         return noise
 
 
+class FlexibleNoiseGenerator(object):
+    def __init__(self, noise_shape, std=10, random_seed=None):
+        self.noise_shape = noise_shape
+        self.prng = (tf.random.Generator.from_seed(random_seed)
+                     if random_seed is not None
+                     else tf.random.get_global_generator())
+        self.std = std
+
+    def __call__(self, bs=None):
+        mean = 0
+        std = self.std
+        bs = self.noise_shape[0] if bs is None else bs
+        t = self.noise_shape[1]
+        x = self.noise_shape[2]
+        y = self.noise_shape[3]
+        channels = self.noise_shape[4]
+        return self.prng.normal((bs, t, x, y, channels), mean=mean, stddev=self.std)
+
+
 class NaiveDecoder(object):
     def __init__(self, normalize=True):
         self.normalize_input = normalize
