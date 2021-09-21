@@ -1,8 +1,9 @@
+import os
 from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.keras import Model
-
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 class GAN(Model):
     def __init__(self, generator: Model, discriminator: Model, noise_generator, *args, **kwargs):
@@ -21,8 +22,9 @@ class GAN(Model):
         # Run forward pass on the discriminator
         noise = self.noise_generator(batch_size)
         fake_high_res = self.generator([low_res, noise], training=False)
-        gamma = 0.1
-        combined_high_res = (high_res + fake_high_res) / 2
+        gamma = 10
+        eps = tf.random.uniform(shape=(batch_size, 1, 1, 1, 1), minval=0, maxval=1)
+        combined_high_res = eps * high_res + (1 - eps) * fake_high_res
 
         with tf.GradientTape() as reg_tape:
             reg_tape.watch(combined_high_res)
@@ -31,33 +33,24 @@ class GAN(Model):
         gradients = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2, 3]))
         gradient_reg = gamma * tf.reduce_mean((gradients - 1) ** 2)
 
-        with tf.GradientTape() as disc_tape:
+        with tf.GradientTape() as disc_tape, tf.GradientTape() as gen_tape:
+            fake_high_res = self.generator([low_res, noise], training=True)
             high_res_score = self.discriminator([low_res, high_res], training=True)
             fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
-            disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
-                                                         regularization_losses=[gradient_reg])
-        # Run discriminator backward pass
+            disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight)
+                                                         #regularization_losses=[gradient_reg])
+            gen_loss = tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
         grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
         self.discriminator.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
-
+        # Update metrics
+        self.generator.compiled_metrics.update_state(high_res, fake_high_res, sample_weight)
+        self.compiled_metrics.update_state(high_res_score, fake_high_res_score, sample_weight)
         disc_loss_unregularized = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight)
-
-        # Run forward pass on generator using the discriminator to evaluate loss
-        noise = self.noise_generator(batch_size)
-        with tf.GradientTape() as gen_tape:
-            fake_high_res = self.generator([low_res, noise], training=True)
-            high_res_score = self.discriminator([low_res, high_res], training=False)
-            fake_high_res_score = self.discriminator([low_res, fake_high_res], training=False)
-            gen_loss = tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
-        # Run generator backward pass
         grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
         self.generator.optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
 
-        # Update discriminator metrics
-        self.compiled_metrics.update_state(high_res_score, fake_high_res_score, sample_weight)
-
         # Collect metrics to return
-        return_metrics = {'loss': (disc_loss_unregularized + gen_loss) / 2, 'd_loss': disc_loss_unregularized,
+        return_metrics = {'d_loss': disc_loss_unregularized,
                           'g_loss': gen_loss}
         for metric in self.metrics:
             result = metric.result()
@@ -65,6 +58,12 @@ class GAN(Model):
                 return_metrics.update(result)
             else:
                 return_metrics[metric.name] = result
+        for metric in self.generator.metrics:
+            result = metric.result()
+            if isinstance(result, dict):
+                return_metrics.update(result)
+            else:
+                return_metrics[f'g_{metric.name}'] = result
         return return_metrics
 
     def test_step(self, data):
@@ -90,18 +89,19 @@ class GAN(Model):
                 generator_optimizer,
                 discriminator_optimizer,
                 generator_loss=None,
+                generator_metrics=None,
                 discriminator_loss=None,
                 **kwargs):
         super().compile(**kwargs)
-        self.generator.compile(generator_optimizer, generator_loss)
+        self.generator.compile(generator_optimizer, generator_loss, metrics=generator_metrics)
         self.discriminator.compile(discriminator_optimizer, discriminator_loss)
 
     def save_weights(self, filepath, *args, **kwargs):
-        self.generator.save_weights(Path(filepath) / 'generator', *args, **kwargs)
-        self.discriminator.save_weights(Path(filepath) / 'discriminator', *args, **kwargs)
+        self.generator.save_weights(os.path.join(filepath, 'generator'), *args, **kwargs)
+        self.discriminator.save_weights(os.path.join(filepath, 'discriminator'), *args, **kwargs)
 
     def load_weights(self,
                      filepath,
                      *args, **kwargs):
-        self.generator.load_weights(Path(filepath) / 'generator', *args, **kwargs)
-        self.discriminator.load_weights(Path(filepath) / 'discriminator', *args, **kwargs)
+        self.generator.load_weights(Path(filepath) / f'generator', *args, **kwargs)
+        self.discriminator.load_weights(Path(filepath) / f'discriminator', *args, **kwargs)

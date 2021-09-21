@@ -1,3 +1,4 @@
+import pathlib
 import re
 from glob import glob
 from typing import Union, Tuple
@@ -43,8 +44,10 @@ def get_array_from_dataset(data: Dataset, variable_str: str, range_lon: Tuple[fl
     if range_lon is not None:
         min_lon, max_lon = range_lon
         mask_long = (longs <= max_lon) & (longs >= min_lon)
+        ndim_lon = mask_long.ndim
     else:
         mask_long = True
+        ndim_lon = 0
     if range_lat is not None:
         min_lat, max_lat = range_lat
         mask_lat = (lats <= max_lat) & (lats >= min_lat)
@@ -64,16 +67,30 @@ def get_array_from_dataset(data: Dataset, variable_str: str, range_lon: Tuple[fl
     values = data.variables[f"{variable_str}"][:]
     values.set_fill_value(np.nan)
     values_date = np.squeeze(values.filled()[mask_time, :, :])
-    if values_date.ndim > 2:
+    if values_date.ndim > 2 and ndim_lon < 2:
         values_date_place = np.squeeze(np.squeeze(values_date[:, :, mask_long])[:, mask_lat, :]) * unit_correction
-    else:
+    elif values_date.ndim <= 2 and ndim_lon < 2:
         values_date_place = np.squeeze(np.squeeze(values_date[:, mask_long])[mask_lat]) * unit_correction
-    if len(longs.shape) > 1 and len(lats.shape) > 1:
+    else:
+        mask = mask_long & mask_lat
+        rows, cols = np.where(mask)
+        rows = np.unique(rows)
+        cols = np.unique(cols)
+        values_date_place = np.squeeze(np.squeeze(values_date[:, cols])[rows]) * unit_correction
+
+    if len(longs.shape) > 1 and len(lats.shape) > 1 and ndim_lon < 2:
         longs_place = np.squeeze(longs[:, mask_long][mask_lat])
         lats_place = np.squeeze(lats[:, mask_long][mask_lat])
-    else:
+    elif len(longs.shape) == 1 and len(lats.shape) == 1 and ndim_lon < 2:
         longs_place = np.squeeze(longs[mask_long])
         lats_place = np.squeeze(lats[mask_lat])
+    else:
+        mask = mask_long & mask_lat
+        rows, cols = np.where(mask)
+        rows = np.unique(rows)
+        cols = np.unique(cols)
+        longs_place = np.squeeze(longs[:, cols][rows])
+        lats_place = np.squeeze(lats[:, cols][rows])
     datetimes = np.squeeze(np.array(datetimes)[mask_time])
     return values_date_place, longs_place, lats_place, datetimes
 
@@ -91,12 +108,16 @@ def plot_colormap_from_array(data: np.ndarray,
     ax.set_extent([longitudes.min(), longitudes.max(), latitudes.min(), latitudes.max()])
     ax.coastlines()
     ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
-    c_scheme = ax.pcolormesh(longitudes, latitudes, data, transform=HigherResPlateCarree(), cmap='jet')
-    plt.colorbar(c_scheme, location='bottom', pad=0.05,
-                 label=unit, ax=ax)
     if range_values_to_display is not None:
         min_value_to_display, max_value_to_display = range_values_to_display
-        ax.clim(min_value_to_display, max_value_to_display)
+    else:
+        min_value_to_display = data.min()
+        max_value_to_display = data.max()
+    c_scheme = ax.pcolormesh(longitudes, latitudes, data, transform=HigherResPlateCarree(), cmap='jet',
+                             vmin=min_value_to_display, vmax=max_value_to_display)
+    plt.colorbar(c_scheme, location='bottom', pad=0.05,
+                 label=unit, ax=ax)
+
     ax.set_title(title)
     return ax
 
@@ -121,7 +142,6 @@ def plot_barbs_from_array(u: np.ndarray, v: np.ndarray, longitudes: np.ndarray, 
 
 
 def plot_wind_components_from_array(u: np.ndarray, v: np.ndarray, longitudes: np.ndarray, latitudes: np.ndarray,
-                                    range_values_to_display=None,
                                     ax=None,
                                     title=''):
     if ax is None:
@@ -138,9 +158,6 @@ def plot_wind_components_from_array(u: np.ndarray, v: np.ndarray, longitudes: np
     ax.quiver(longitudes, latitudes,
               u, v, speed,
               cmap=plt.cm.autumn, transform=ccrs.PlateCarree())
-    if range_values_to_display is not None:
-        min_value_to_display, max_value_to_display = range_values_to_display
-        ax.clim(min_value_to_display, max_value_to_display)
     ax.set_title(title)
     return ax
 
@@ -166,7 +183,6 @@ def plot_colormap_from_dataset(data: Dataset, time_index: int, variable_str: str
 def plot_wind_components_from_dataset(data: Dataset, time_index: int, variable1_str: str, variable2_str: str,
                                       range_lon=None, range_lat=None,
                                       unit_correction=1.,
-                                      range_values_to_display=None,
                                       ax=None):
     if ax is None:
         proj = HigherResPlateCarree()
@@ -179,7 +195,7 @@ def plot_wind_components_from_dataset(data: Dataset, time_index: int, variable1_
                                          time_frame=(interest_time, interest_time),
                                          unit_correction=unit_correction)
     title = f'{data.variables[f"{variable1_str}"].long_name}\n {data.variables[f"{variable2_str}"].long_name} \n {interest_time}'
-    ax = plot_wind_components_from_array(v1, v2, longs_place, lats_place, range_values_to_display, ax=ax,
+    ax = plot_wind_components_from_array(v1, v2, longs_place, lats_place, ax=ax,
                                          title=title)
     return ax
 
@@ -228,3 +244,4 @@ def plot_ERA5_wind_fields_timelapse(start_date, end_date, data_path, plot_path, 
             Image.open(f'{plot_path}/{date}.png'))
     images[0].save(f'{plot_path}/era5_timelapse.gif',
                    save_all=True, append_images=images[1:], duration=300, loop=0)
+

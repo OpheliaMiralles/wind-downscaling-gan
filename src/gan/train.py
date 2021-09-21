@@ -5,6 +5,10 @@ def discriminator_loss(real_output, fake_output):
     return tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
 
 
+def generator_optimizer():
+    return tf.keras.optimizers.Adam(lr=1e-4)
+
+
 class discriminator_score_real(tf.keras.metrics.Mean):
     def __init__(self, name='d_real', **kwargs):
         super(discriminator_score_real, self).__init__(name=name, **kwargs)
@@ -21,10 +25,6 @@ class discriminator_score_fake(tf.keras.metrics.Mean):
 
     def update_state(self, real_output, fake_output, sample_weight=None):
         return super(discriminator_score_fake, self).update_state(fake_output, sample_weight)
-
-
-def generator_optimizer():
-    return tf.keras.optimizers.Adam(lr=1e-4)
 
 
 def discriminator_optimizer():

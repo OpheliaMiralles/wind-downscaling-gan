@@ -185,7 +185,6 @@ class FlexibleNoiseGenerator(object):
 
     def __call__(self, bs=None):
         mean = 0
-        std = self.std
         bs = self.noise_shape[0] if bs is None else bs
         t = self.noise_shape[1]
         x = self.noise_shape[2]
