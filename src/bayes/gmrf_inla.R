@@ -5,23 +5,48 @@
 
 library(INLA)
 inla.pardiso.check()
-data.path <- "/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/data/point_prediction_files_/dataframe_6months.csv"
+data.path <- "/Users/opheliamiralles/Desktop/PhD/EPFL/WindDownscaling_EPFL_UNIBE/data/point_prediction_files/dataframe_6months_test.csv"
 out.data <- read.csv(data.path)
-loc <- cbind(out.data$lon, out.data$lat)
-bnd1 <- inla.nonconvex.hull(loc, convex = 0.05)
-bnd2 <- inla.nonconvex.hull(loc, convex = 0.25)
-mesh <- inla.mesh.2d(loc, boundary = list(bnd1, bnd2),
-                     max.edge = c(0.05, 0.2), cutoff = 0.005)
-# triangulates the space, to solve spde using numerical methods
-A <- inla.spde.make.A(mesh, loc)
-# defines the mapping matrix between nodes for spde and initial locations
-spde <- inla.spde2.matern(mesh, alpha = 2)
-formula1 <- u10_hr ~ 0 + a0 + u10 + f(spatial, model = spde)
-stk <- inla.stack(data = list(u10_hr = out.data$u10_hr), A = list(A, 1),
-                  effect = list(spatial = 1:spde$n.spde,
-                                data.frame(a0 = 1, u10 = out.data$u10)))
+
+# Creation of spatial mesh with data fixed in time
+t0.data <- out.data[out.data$time== 0,]
+loc <- cbind(t0.data$lon, t0.data$lat)
+#bnd1 <- inla.nonconvex.hull(loc, convex = 0.05, resolution=c(92, 43))
+mesh <- inla.mesh.2d(loc,
+                     max.edge = c(0.1, 0.2), offset = c(0.1, 0.2))
+
+# Creation of temporal mesh with knots every 6 hours
+loc0.data <- out.data[out.data$station=='ABO',]
+mesh.t <- inla.mesh.1d(seq(0, max(loc0.data$time), by=6))
+nb.groups <- mesh.t$m
+
+# Creation of A matrix and spatial field indices per group
+spde <- inla.spde2.pcmatern(mesh = mesh,
+  prior.range = c(0.5, 0.01), # P(range < 0.05) = 0.01
+  prior.sigma = c(10, 0.01)) # P(sigma > 1) = 0.01
+iset <- inla.spde.make.index("spatial.field", spde$n.spde, n.group = nb.groups)
+A <- inla.spde.make.A(mesh = mesh, loc = cbind(out.data$lon, out.data$lat),
+  group = out.data$time, group.mesh = mesh.t)
+
+# Stack all data
+stk <- inla.stack(data = list(u10_hr = out.data$u10_hr),
+                    A = list(A, 1),
+                  effect = list(c(list(a0=1), iset),
+                                list(u10 = out.data$u10)))
+# Prior for AR1 effect, specifying that P(cor > 0) = 0.9
+h.spec <- list(rho = list(prior = 'pc.cor1', param = c(0, 0.9)))
+formula1 <- u10_hr ~ 0 + a0 + u10 + f(spatial.field,
+                                      model = spde,
+                                      group = spatial.field.group,
+  control.group = list(model = 'ar1', hyper = h.spec))
+# PC prior on the autoreg. param.
+prec.prior <- list(prior = 'pc.prec', param = c(1, 0.01))
 model1 <- inla(formula1, family = "gaussian",
-               data = inla.stack.data(stk), control.predictor = list(A = inla.stack.A(stk)), verbose = TRUE)
+               data = inla.stack.data(stk),
+               control.predictor = list(A = inla.stack.A(stk)),
+               control.family = list(hyper = list(prec = prec.prior)),
+               control.inla = list(int.strategy = 'simplified.laplace', huge=TRUE),
+               verbose = TRUE)
 
 # Visualising random effect
 gproj <- inla.mesh.projector( ## projector builder
@@ -97,4 +122,4 @@ return(invisible(plots))
 }
 
 plots <- ggplot_inla_residuals(p.res, observed)
-save.image("/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/results/INLA/univariate_regression_with_randomeffect.RData")
+save.image("/Users/Boubou/Documents/GitHub/WindDownscaling_EPFL_UNIBE/results/INLA/simple_regression_with_randomeffect.RData")
