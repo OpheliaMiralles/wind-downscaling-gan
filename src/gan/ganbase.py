@@ -3,7 +3,7 @@ from pathlib import Path
 
 import tensorflow as tf
 from tensorflow.keras import Model
-from tensorflow.keras.callbacks import ModelCheckpoint
+
 
 class GAN(Model):
     def __init__(self, generator: Model, discriminator: Model, noise_generator, *args, **kwargs):
@@ -37,8 +37,8 @@ class GAN(Model):
             fake_high_res = self.generator([low_res, noise], training=True)
             high_res_score = self.discriminator([low_res, high_res], training=True)
             fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
-            disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight)
-                                                         #regularization_losses=[gradient_reg])
+            disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
+                                                         regularization_losses=[gradient_reg])
             gen_loss = tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
         grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
         self.discriminator.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))

@@ -468,6 +468,18 @@ def process_topographic_variables_file(path_to_file: str):
         da.to_dataset().to_netcdf(pathlib.Path(path_to_file.parent, filename))
 
 
+def compute_time_varying_topo_pred(u, v, slope, aspect):
+    delta = np.arctan2(-v, -u) - aspect
+    alpha = np.arctan(np.tan(slope) * np.cos(delta))
+    e_plus = xr.where(np.sin(alpha) > 0, np.sin(alpha), 0)
+    e_minus = xr.where(np.sin(alpha) < 0, np.sin(alpha), 0)
+    return e_plus, e_minus
+
+def compute_wind_speed_and_angle(u, v):
+    w_speed = np.sqrt(u**2 + v**2)
+    w_angle = np.arctan2(v, u)
+    return w_speed, w_angle
+
 def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_path: str, DEM_data_path: str,
                  start_date, end_date,
                  surface_variables_included=('u10', 'v10', 'blh', 'fsr', 'sp'),
@@ -524,5 +536,9 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 
             print(f'Merging input data into a dataset...')
             full_data = xr.merge([inputs_surface, inputs_z500, static_inputs])
+            e_plus, e_minus = compute_time_varying_topo_pred(full_data.u10, full_data.v10,
+                                             full_data.slope, full_data.aspect)
+            w_speed, w_angle = compute_wind_speed_and_angle(full_data.u10, full_data.v10)
+            full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus, 'w_speed': w_speed, 'w_angle': w_angle})
             full_data.to_netcdf(x_path)
             outputs.to_netcdf(y_path)
