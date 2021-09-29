@@ -1,4 +1,3 @@
-import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 
@@ -52,12 +51,15 @@ WeightedRMSEForExtremes = lambda: tfa.metrics.MeanMetricWrapper(weighted_extreme
 
 
 def log_spectral_distance(real_output, fake_output):
-    power_spectra_real = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(real_output), perm=[0,1,4,2,3])) ** 2, perm=[0,1,3,4,2])
-    power_spectra_fake = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(fake_output), perm=[0,1,4,2,3])) ** 2, perm=[0,1,3,4,2])
+    power_spectra_real = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(real_output), perm=[0, 1, 4, 2, 3])) ** 2,
+                                      perm=[0, 1, 3, 4, 2])
+    power_spectra_fake = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(fake_output), perm=[0, 1, 4, 2, 3])) ** 2,
+                                      perm=[0, 1, 3, 4, 2])
     ratio = tf.math.divide_no_nan(power_spectra_real, power_spectra_fake)
 
     def log10(x):
         numerator = tf.math.log(x)
+        numerator = tf.where(tf.math.is_nan(numerator), tf.zeros_like(numerator), numerator)
         denominator = tf.math.log(tf.constant(10, dtype=numerator.dtype))
         return tf.math.divide_no_nan(numerator, denominator)
 
