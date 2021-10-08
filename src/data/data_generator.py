@@ -15,6 +15,8 @@ class BatchGenerator(tf.keras.utils.Sequence):
     def __init__(self,
                  path_to_data,
                  decoder,
+                 input_pattern='x_{}',
+                 output_pattern='y_{}',
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -28,7 +30,8 @@ class BatchGenerator(tf.keras.utils.Sequence):
                  num_workers=1,
                  ):
         self.num_workers = num_workers
-        self._bg = _BatchGenerator(path_to_data, decoder, start_date, end_date, sequence_length, patch_length_pixel,
+        self._bg = _BatchGenerator(path_to_data, decoder, input_pattern, output_pattern, start_date, end_date,
+                                   sequence_length, patch_length_pixel,
                                    batch_size, transform, input_variables, output_variables)
         if self.num_workers > 1:
             self.enqueuer = tf.keras.utils.GeneratorEnqueuer(self._bg, use_multiprocessing=True)
@@ -51,6 +54,8 @@ class BatchGenerator(tf.keras.utils.Sequence):
 class _BatchGenerator(object):
 
     def __init__(self, path_to_data, decoder,
+                 input_pattern='x_{}',
+                 output_pattern='y_{}',
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -68,7 +73,7 @@ class _BatchGenerator(object):
         self.patch_length_pixel = patch_length_pixel
         self.input_variables = list(input_variables)
         self.output_variables = list(output_variables)
-        self.dates = sorted([f.with_suffix('').name.split('_')[-1] for f in Path(path_to_data).glob('x_*.nc')])
+        self.dates = sorted([f.with_suffix('').name.split('_')[-1] for f in Path(path_to_data).glob('y_*.nc')])
         if start_date is not None:
             start_date = pd.to_datetime(start_date)
             self.dates = [d for d in self.dates if pd.to_datetime(d) >= start_date]
@@ -76,6 +81,8 @@ class _BatchGenerator(object):
             end_date = pd.to_datetime(end_date)
             self.dates = [d for d in self.dates if pd.to_datetime(d) <= end_date]
         self.data_path = path_to_data
+        self.x_pattern = input_pattern
+        self.y_pattern = output_pattern
         self.current_date_index = -1
         self.prng = np.random.RandomState(seed=None)
 
@@ -118,8 +125,8 @@ class _BatchGenerator(object):
 
     def __next__(self):
         date = self.next_date()
-        input = xr.open_dataset(Path(self.data_path, f'x_{date}').with_suffix('.nc'))
-        output = xr.open_dataset(Path(self.data_path, f'y_{date}').with_suffix('.nc'))
+        input = xr.open_dataset(Path(self.data_path, self.x_pattern.format(date)).with_suffix('.nc'))
+        output = xr.open_dataset(Path(self.data_path, self.y_pattern.format(date)).with_suffix('.nc'))
         input_batch = []
         output_batch = []
         for b in range(self.batch_size):

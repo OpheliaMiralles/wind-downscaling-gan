@@ -6,11 +6,13 @@ from tensorflow.keras import Model
 
 
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model, noise_generator, *args, **kwargs):
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, generator_additional_losses=None, *args,
+                 **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
         self.generator = generator
         self.discriminator = discriminator
         self.noise_generator = noise_generator
+        self._generator_additional_losses = generator_additional_losses
         self._steps_per_execution = tf.convert_to_tensor(1)
 
     def _assert_compile_was_called(self):
@@ -39,7 +41,13 @@ class GAN(Model):
             fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
             disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
                                                          regularization_losses=[gradient_reg])
-            gen_loss = tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
+            gen_disc_loss = tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
+            if self._generator_additional_losses is not None:
+                gen_additional_losses = tf.reduce_mean(
+                    [loss(high_res, fake_high_res) for loss in self._generator_additional_losses])
+                gen_loss = (gen_disc_loss + gen_additional_losses) / 2
+            else:
+                gen_loss = gen_disc_loss
         grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
         self.discriminator.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
         # Update metrics

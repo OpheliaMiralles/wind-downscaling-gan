@@ -1,13 +1,22 @@
 import os
 import pathlib
 import re
+from datetime import date
 from io import StringIO
 from typing import Tuple
 
+import cartopy.crs as ccrs
 import numpy as np
 import pandas as pd
 import xarray as xr
+from scipy.ndimage import gaussian_filter
 from topo_descriptors import topo, helpers
+
+
+class HigherResPlateCarree(ccrs.PlateCarree):
+    @property
+    def threshold(self):
+        return super().threshold / 100
 
 
 class PointPredictionProcessing(object):
@@ -475,10 +484,12 @@ def compute_time_varying_topo_pred(u, v, slope, aspect):
     e_minus = xr.where(np.sin(alpha) < 0, np.sin(alpha), 0)
     return e_plus, e_minus
 
+
 def compute_wind_speed_and_angle(u, v):
-    w_speed = np.sqrt(u**2 + v**2)
+    w_speed = np.sqrt(u ** 2 + v ** 2)
     w_angle = np.arctan2(v, u)
     return w_speed, w_angle
+
 
 def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_path: str, DEM_data_path: str,
                  start_date, end_date,
@@ -537,8 +548,62 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             print(f'Merging input data into a dataset...')
             full_data = xr.merge([inputs_surface, inputs_z500, static_inputs])
             e_plus, e_minus = compute_time_varying_topo_pred(full_data.u10, full_data.v10,
-                                             full_data.slope, full_data.aspect)
+                                                             full_data.slope, full_data.aspect)
             w_speed, w_angle = compute_wind_speed_and_angle(full_data.u10, full_data.v10)
             full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus, 'w_speed': w_speed, 'w_angle': w_angle})
             full_data.to_netcdf(x_path)
-            outputs.to_netcdf(y_path)
+            if not os.path.isfile(y_path):
+                outputs.to_netcdf(y_path)
+
+
+def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path: str, DEM_data_path: str,
+                                 start_date, end_date,
+                                 topo_variables_included=('tpi_500', 'ridge_index_norm'),
+                                 cosmo_variables_included=('U_10M', 'V_10M')):
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+    print(f'Reading DEM data files')
+    inputs_topo = xr.open_mfdataset(pathlib.Path(DEM_data_path).glob('topo*.nc'))
+    topo_vars_to_drop = [v for v in inputs_topo.variables if
+                         v not in topo_variables_included + tuple(inputs_topo._coord_names)]
+    for d in pd.date_range(start_date, end_date):
+        # Downloading saved inputs
+        d_str = d.strftime('%Y%m%d')
+        x_path = pathlib.Path(path_to_processed_files, f'x_cosmo_{d_str}').with_suffix('.nc')
+        y_path = pathlib.Path(path_to_processed_files, f'y_{d_str}').with_suffix('.nc')
+        all_inputs_there = False
+        if os.path.isfile(x_path):
+            inputs = xr.open_mfdataset(str(x_path))
+            variables = [v for v in inputs.variables if v not in ['lat_1', 'lon_1', 'time', 'x_1', 'y_1',
+                                                                  'x', 'y']]
+            all_inputs = set(cosmo_variables_included + topo_variables_included)
+            if set(np.intersect1d(list(all_inputs), variables)) == all_inputs:
+                all_inputs_there = True
+                print(f'Inputs and outputs for date {d_str} have already been processed.')
+        if not all_inputs_there:
+            print(f'Reading data files for day {d}')
+            print(f'Reading COSMO1 data files')
+            cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'{d_str}*.nc')).sel(time=d_str)
+            cosmo_vars_to_drop = [v for v in cosmo.variables if
+                                  v not in cosmo_variables_included + tuple(cosmo._coord_names)]
+            cosmo_outputs = cosmo.drop_vars(cosmo_vars_to_drop)
+            print('Blurring COSMO1 image to obtain inputs')
+            cosmo_inputs = cosmo_outputs.apply(lambda x: gaussian_filter(x, sigma=9))
+            print('Adjusting resolution of topographic descriptors to COSMO1 image size')
+            temp_inputs_topo = inputs_topo \
+                .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest').drop_vars(topo_vars_to_drop)
+            # Replicate static inputs for time series concordance
+            time_steps = cosmo.time.shape
+            print(
+                f'Replicating {time_steps[0]} times the static topographic inputs to respect the time series data format for inputs')
+            static_inputs = temp_inputs_topo.expand_dims({'time': cosmo.time})
+
+            print(f'Merging input data into a dataset...')
+            full_data = xr.merge([cosmo_inputs, static_inputs])
+            e_plus, e_minus = compute_time_varying_topo_pred(full_data.U_10M, full_data.V_10M,
+                                                             full_data.slope, full_data.aspect)
+            w_speed, w_angle = compute_wind_speed_and_angle(full_data.U_10M, full_data.V_10M)
+            full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus, 'w_speed': w_speed, 'w_angle': w_angle})
+            full_data.to_netcdf(x_path)
+            if not os.path.isfile(y_path):
+                cosmo_outputs.to_netcdf(y_path)

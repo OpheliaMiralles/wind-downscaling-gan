@@ -1,0 +1,8 @@
+numpy==1.19.5
+tensorflow==2.4.3
+tensorflow-addons==0.14.0
+tensorflow-probability==0.12.2
+tensorboard==2.4.0
+ipykernel==5.5.5
+ipython_genutils==0.2.0
+matplotlib==3.4.1

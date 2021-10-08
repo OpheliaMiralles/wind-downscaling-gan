@@ -8,6 +8,7 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import xarray as xr
 from netCDF4 import Dataset
 
 
@@ -245,3 +246,38 @@ def plot_ERA5_wind_fields_timelapse(start_date, end_date, data_path, plot_path, 
     images[0].save(f'{plot_path}/era5_timelapse.gif',
                    save_all=True, append_images=images[1:], duration=300, loop=0)
 
+
+def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, start_date, end_date):
+    from cartopy.crs import epsg
+    crs_cosmo = epsg(21781)
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+    for d in pd.date_range(start_date, end_date):
+        # Downloading saved inputs
+        d_str = d.strftime('%Y%m%d')
+        print(d_str)
+        cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'{d_str}*.nc')).sel(time=d_str).isel(time=0)[
+            'U_10M']
+        inputs_surface = xr.open_dataset(pathlib.Path(ERA5_data_path, f'x_{d_str}.nc')).sel(
+            time=d_str).isel(time=0)['u10']
+        fig, (ax1, ax2) = plt.subplots(ncols=2, subplot_kw={'projection': HigherResPlateCarree()},
+                                       figsize=(10, 5))
+        range_long = (5.379209, 11.023753)
+        range_lat = (45.497330, 48.096882)
+        vmin = np.min(cosmo.__array__())
+        vmax = np.max(cosmo.__array__())
+        cosmo.plot(cmap='jet', ax=ax1, transform=crs_cosmo, vmin=vmin,
+                   vmax=vmax,
+                   cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
+                                "label": "10-meter U-component (m.s-1)"})
+        inputs_surface.plot(cmap='jet', ax=ax2, transform=crs_cosmo, vmin=vmin,
+                            vmax=vmax,
+                            cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
+                                         "label": "10-meter U-component (m.s-1)"})
+        ax1.set_title('COSMO-1 predictions')
+        ax2.set_title('ERA5 reanalysis data')
+        for ax in [ax1, ax2]:
+            ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
+            ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+        fig.tight_layout()
+        return fig
