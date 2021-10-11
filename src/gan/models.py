@@ -154,9 +154,9 @@ def make_discriminator(
     assert log2(high_res_size).is_integer()
 
     low_res = kl.Input(shape=(n_timesteps, low_res_size, low_res_size, low_res_channels), batch_size=batch_size,
-                       name='low resolution image')
+                       name='low_resolution_image')
     high_res = kl.Input(shape=(n_timesteps, high_res_size, high_res_size, high_res_channels), batch_size=batch_size,
-                        name='high resolution image')
+                        name='high_resolution_image')
     if tuple(low_res.shape)[:-1] != tuple(high_res.shape)[:-1]:
         raise NotImplementedError("The discriminator assumes that the low res and high res images have the same size."
                                   "Perhaps you should upsample your low res image first?")
