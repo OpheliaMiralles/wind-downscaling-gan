@@ -118,8 +118,7 @@ def make_generator(
 
     # Re-introduce residuals from before (skip connection)
     x = kl.Concatenate()([x, res_4])
-    x = kl.TimeDistributed(kl.UpSampling2D(size=(2, 2), interpolation='bilinear'))(x)
-    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), padding='same', activation=LeakyReLU(0.2)))(
+    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(
         x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
@@ -181,15 +180,10 @@ def make_discriminator(
     def channels(z):
         return z.shape[-1]
 
-    while img_size(x) >= 32:
-        x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
-        x = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x) * 2, (5, 5), strides=2, activation=LeakyReLU(0.2))))(x)
-
     while img_size(x) >= 4:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
         x = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x) * 2, (5, 5), strides=3, activation=LeakyReLU(0.2))))(x)
+            SpectralNormalization(kl.Conv2D(channels(x) * 2, (5, 5), strides=2, activation=LeakyReLU(0.2))))(x)
 
     while img_size(x) > 1:
         x = kl.TimeDistributed(
