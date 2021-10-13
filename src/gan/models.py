@@ -189,7 +189,6 @@ def make_discriminator(
         x = kl.TimeDistributed(
             SpectralNormalization(kl.Conv2D(channels(x) * 2, (3, 3), strides=2, activation=LeakyReLU(0.2))))(x)
     x = kl.TimeDistributed(kl.Flatten())(x)
-    print(x.shape)
     assert tuple(x.shape)[:-1] == (batch_size, n_timesteps)  # Unknown number of channels
     x = kl.TimeDistributed(kl.Dense(1, activation='linear'))(x)
     x = kl.GlobalAveragePooling1D(name='score')(x)
