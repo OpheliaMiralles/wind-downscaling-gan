@@ -1,6 +1,8 @@
 import tensorflow as tf
 
-from gan.metrics import angular_cosine_distance, weighted_extreme_rmse, wind_speed_rmse, wind_speed_weighted_rmse
+from gan.metrics import log_spectral_distance, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance
+
+generator_losses = [log_spectral_distance, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance]
 
 
 def discriminator_loss(real_output, fake_output):
@@ -9,7 +11,7 @@ def discriminator_loss(real_output, fake_output):
 
 def generator_loss(real_output, fake_output):
     return tf.reduce_mean([loss(real_output, fake_output) for loss in
-                           [angular_cosine_distance, weighted_extreme_rmse, wind_speed_rmse, wind_speed_weighted_rmse]])
+                           generator_losses])
 
 
 def generator_optimizer():

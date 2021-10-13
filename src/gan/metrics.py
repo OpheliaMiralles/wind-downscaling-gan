@@ -40,7 +40,7 @@ def wind_speed_weighted_rmse(real_output, fake_output):
 WindSpeedWeightedRMSE = lambda: tfa.metrics.MeanMetricWrapper(wind_speed_weighted_rmse, name='ws_weighted_rmse')
 
 
-def weighted_extreme_rmse(real_output, fake_output):
+def extreme_weighted_rmse(real_output, fake_output):
     sq = real_output ** 2
     # Weights proportional to extremeness of winds
     weights = tf.math.divide_no_nan(sq, tf.reduce_sum(sq))
@@ -49,7 +49,7 @@ def weighted_extreme_rmse(real_output, fake_output):
     return weighted_rmse
 
 
-WeightedRMSEForExtremes = lambda: tfa.metrics.MeanMetricWrapper(weighted_extreme_rmse, name='extreme_rmse')
+WeightedRMSEForExtremes = lambda: tfa.metrics.MeanMetricWrapper(extreme_weighted_rmse, name='extreme_rmse')
 
 
 def wind_speed_rmse(real_output, fake_output):
@@ -71,7 +71,9 @@ def angular_cosine_distance(real_output, fake_output):
     norm_real = tf.norm(real_output, axis=-1)
     norm_fake = tf.norm(fake_output, axis=-1)
     angle = tf.math.acos(tf.math.divide_no_nan(scalar_prod,
-                                               norm_fake * norm_real))  # not dividing by pi to avoid this metric being eclipsed by RMSE ones
+                                               norm_fake * norm_real)) / np.pi
+    angle = tf.where(tf.math.is_nan(angle), tf.zeros_like(angle), angle)
+    angle = tf.reduce_mean(angle, axis=(1, 2, 3))
     return angle
 
 
@@ -124,8 +126,8 @@ def spatially_convolved_ks_stat(real_output, fake_output):
                                               rates=(1, 1, 1, 1),
                                               padding='VALID')
             ks_stat_for_time_step = ks_stat_on_patch(patch1, patch2)
-            to_concat.append(tf.reduce_sum(ks_stat_for_time_step, axis=(1, 2)))
-    mean_ks_stat_img = tf.reduce_mean(to_concat)
+            to_concat.append(tf.reduce_mean(ks_stat_for_time_step, axis=(1, 2)))
+    mean_ks_stat_img = tf.reduce_mean(to_concat, axis=0)
     return mean_ks_stat_img
 
 

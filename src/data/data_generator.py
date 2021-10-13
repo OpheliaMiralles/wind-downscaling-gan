@@ -15,8 +15,8 @@ class BatchGenerator(tf.keras.utils.Sequence):
     def __init__(self,
                  path_to_data,
                  decoder,
-                 input_pattern='x_{}',
-                 output_pattern='y_{}',
+                 input_pattern='x_{date}',
+                 output_pattern='y_{date}',
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -54,8 +54,8 @@ class BatchGenerator(tf.keras.utils.Sequence):
 class _BatchGenerator(object):
 
     def __init__(self, path_to_data, decoder,
-                 input_pattern='x_{}',
-                 output_pattern='y_{}',
+                 input_pattern='x_{date}',
+                 output_pattern='y_{date}',
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -125,8 +125,8 @@ class _BatchGenerator(object):
 
     def __next__(self):
         date = self.next_date()
-        input = xr.open_dataset(Path(self.data_path, self.x_pattern.format(date)).with_suffix('.nc'))
-        output = xr.open_dataset(Path(self.data_path, self.y_pattern.format(date)).with_suffix('.nc'))
+        input = xr.open_dataset(Path(self.data_path, self.x_pattern.format(date=date)).with_suffix('.nc'))
+        output = xr.open_dataset(Path(self.data_path, self.y_pattern.format(date=date)).with_suffix('.nc'))
         input_batch = []
         output_batch = []
         for b in range(self.batch_size):

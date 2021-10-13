@@ -183,14 +183,14 @@ def make_discriminator(
     while img_size(x) >= 4:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
         x = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x) * 2, (5, 5), strides=2, activation=LeakyReLU(0.2))))(x)
+            SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3, activation=LeakyReLU(0.2))))(x)
 
-    while img_size(x) > 1:
+    while img_size(x) > 2:
         x = kl.TimeDistributed(
             SpectralNormalization(kl.Conv2D(channels(x) * 2, (3, 3), strides=2, activation=LeakyReLU(0.2))))(x)
-
-    assert tuple(x.shape)[:-1] == (batch_size, n_timesteps, 1, 1)  # Unknown number of channels
-    x = tf.squeeze(x, [2, 3])
+    x = kl.TimeDistributed(kl.Flatten())(x)
+    print(x.shape)
+    assert tuple(x.shape)[:-1] == (batch_size, n_timesteps)  # Unknown number of channels
     x = kl.TimeDistributed(kl.Dense(1, activation='linear'))(x)
     x = kl.GlobalAveragePooling1D(name='score')(x)
 
