@@ -110,13 +110,16 @@ def ks_stat_on_patch(patch1, patch2):
 @tf.autograph.experimental.do_not_convert
 def spatially_convolved_ks_stat(real_output, fake_output):
     to_concat = []
+    patch_size = real_output.shape[2] // 10
     for time in range(real_output.shape[1]):
         for ch in range(real_output.shape[-1]):
-            patch1 = tf.image.extract_patches(real_output[:, time, ..., ch:ch + 1], sizes=(1, 10, 10, 1),
+            patch1 = tf.image.extract_patches(real_output[:, time, ..., ch:ch + 1],
+                                              sizes=(1, patch_size, patch_size, 1),
                                               strides=(1, 5, 5, 1),
                                               rates=(1, 1, 1, 1),
                                               padding='VALID')
-            patch2 = tf.image.extract_patches(fake_output[:, time, ..., ch:ch + 1], sizes=(1, 10, 10, 1),
+            patch2 = tf.image.extract_patches(fake_output[:, time, ..., ch:ch + 1],
+                                              sizes=(1, patch_size, patch_size, 1),
                                               strides=(1, 5, 5, 1),
                                               rates=(1, 1, 1, 1),
                                               padding='VALID')
