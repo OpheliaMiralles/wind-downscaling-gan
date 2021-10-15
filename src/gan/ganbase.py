@@ -104,6 +104,12 @@ class GAN(Model):
         self.generator.compile(generator_optimizer, generator_loss, metrics=generator_metrics)
         self.discriminator.compile(discriminator_optimizer, discriminator_loss)
 
+    def call(self, inputs, training=None, mask=None):
+        low_res, high_res, sample_weight = tf.keras.utils.unpack_x_y_sample_weight(inputs)
+        batch_size = tf.shape(low_res)[0]
+        noise = self.noise_generator(batch_size)
+        return self.generator.call([low_res, noise], training=training, mask=mask)
+
     def save_weights(self, filepath, *args, **kwargs):
         self.generator.save_weights(os.path.join(filepath, 'generator'), *args, **kwargs)
         self.discriminator.save_weights(os.path.join(filepath, 'discriminator'), *args, **kwargs)

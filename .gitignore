@@ -17,6 +17,7 @@ tex
 plots
 docs
 results
+models
 *.npy
 *.nc
 *.png

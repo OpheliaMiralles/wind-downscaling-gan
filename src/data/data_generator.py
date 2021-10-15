@@ -38,6 +38,16 @@ class BatchGenerator(tf.keras.utils.Sequence):
         else:
             self.enqueuer = None
 
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        timestamps = pd.to_datetime(self._bg.dates)
+        num_days = (max(timestamps)- min(timestamps)).days + 1
+        return num_days
+
+    def __getitem__(self, item):
+        date = self._bg.dates[item]
+        return self._bg.generate(date)
+
     def __enter__(self):
         if self.enqueuer is None:
             return self._bg
@@ -123,8 +133,7 @@ class _BatchGenerator(object):
 
         return crop_to_array(X, self.input_variables), crop_to_array(Y, self.output_variables)
 
-    def __next__(self):
-        date = self.next_date()
+    def generate(self, date):
         input = xr.open_dataset(Path(self.data_path, self.x_pattern.format(date=date)).with_suffix('.nc'))
         output = xr.open_dataset(Path(self.data_path, self.y_pattern.format(date=date)).with_suffix('.nc'))
         input_batch = []
@@ -139,6 +148,10 @@ class _BatchGenerator(object):
         in_batch = np.stack(input_batch, axis=0)
         out_batch = np.stack(output_batch, axis=0)
         return (in_batch, out_batch)
+
+    def __next__(self):
+        date = self.next_date()
+        return self.generate(date)
 
     def transform_sequence(self, X, Y):
         # mirror

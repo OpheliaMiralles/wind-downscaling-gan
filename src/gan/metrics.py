@@ -102,19 +102,19 @@ LogSpectralDistance = lambda: tfa.metrics.MeanMetricWrapper(log_spectral_distanc
 
 
 def ks_stat_on_patch(patch1, patch2):
-    probs = np.linspace(-30., 30., 100)
+    points = np.linspace(-30., 30., 100)
     emp1 = tfp.distributions.Empirical(patch1)
     emp2 = tfp.distributions.Empirical(patch2)
-    ks_stat = tf.reduce_max([tf.abs(emp1.cdf(prob) - emp2.cdf(prob)) for prob in probs], axis=0)
+    ks_stat = tf.reduce_max([tf.abs(emp1.cdf(p) - emp2.cdf(p)) for p in points], axis=0)
     return ks_stat
 
 
 @tf.autograph.experimental.do_not_convert
 def spatially_convolved_ks_stat(real_output, fake_output):
     to_concat = []
-    patch_size = real_output.shape[2] // 10
-    for time in range(real_output.shape[1]):
-        for ch in range(real_output.shape[-1]):
+    patch_size = fake_output.shape[2] // 10
+    for time in range(fake_output.shape[1]):
+        for ch in range(fake_output.shape[-1]):
             patch1 = tf.image.extract_patches(real_output[:, time, ..., ch:ch + 1],
                                               sizes=(1, patch_size, patch_size, 1),
                                               strides=(1, 5, 5, 1),

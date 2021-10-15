@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from gan.metrics import log_spectral_distance, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance
 
-generator_losses = [log_spectral_distance, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance]
+generator_losses = [log_spectral_distance]#, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance]
 
 
 def discriminator_loss(real_output, fake_output):
