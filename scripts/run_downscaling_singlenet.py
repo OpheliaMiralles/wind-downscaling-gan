@@ -16,17 +16,7 @@ from data.data_generator import BatchGenerator, NaiveDecoder
 from gan import train, metrics
 from gan.models import make_generator_no_noise
 
-DATA_ROOT = Path('./data')
-ERA5_DATA_FOLDER = DATA_ROOT / 'ERA5'
-COSMO1_DATA_FOLDER = DATA_ROOT / 'COSMO1'
-DEM_DATA_FILE = DATA_ROOT / 'dem/Switzerland-90m-DEM.tif'
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
-
-DATA_ROOT.mkdir(parents=True, exist_ok=True)
-ERA5_DATA_FOLDER.mkdir(exist_ok=True)
-COSMO1_DATA_FOLDER.mkdir(exist_ok=True)
-DEM_DATA_FILE.parent.mkdir(exist_ok=True)
-PROCESSED_DATA_FOLDER.mkdir(exist_ok=True)
 
 
 def train_with_all_data(sequence_length=6,
