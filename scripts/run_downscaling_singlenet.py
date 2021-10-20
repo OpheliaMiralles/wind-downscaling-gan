@@ -12,10 +12,11 @@ silence_tensorflow()
 import tensorflow as tf
 import tensorflow.keras.callbacks as cb
 
-from data.data_generator import BatchGenerator, NaiveDecoder
+from data.data_generator import BatchGenerator, NaiveDecoder, LocalFileProvider, S3FileProvider
 from gan import train, metrics
 from gan.models import make_generator_no_noise
 
+DATA_ROOT = Path(__file__).parent.parent / 'data'
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
@@ -27,7 +28,22 @@ def train_with_all_data(sequence_length=6,
                         run_id=datetime.today().strftime('%Y%m%d_%H%M'),
                         saving_frequency=10,
                         nb_epochs=500,
-                        batch_workers=None):
+                        batch_workers=None,
+                        data_provider: str = 'local'):
+    """
+
+    :param sequence_length: number of time steps for recurrent component of GAN
+    :param img_size: patch size for batch generation
+    :param batch_size: number of images in a batch
+    :param validation_split: 0.25 = 25% of inputs provided will serve for validation and plots
+    :param cosmoblurred: flag to use blurred version of cosmo or ERA-5 data
+    :param run_id: automatically set to date and time, but can be customized
+    :param saving_frequency: frequency at which weights and metrics computation are saved (in nb epochs)
+    :param nb_epochs: total number of epochs to run
+    :param batch_workers: nb workers that prepare the batches in parallel
+    :param data_provider: 's3' if data is stored in s3 bucket or 'local' if data is stored on local device
+    :return:
+    """
     print(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
     TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
     HOMEMADE_PREDICTORS = ['e_plus', 'e_minus', 'w_speed', 'w_angle']
@@ -35,33 +51,42 @@ def train_with_all_data(sequence_length=6,
     ERA5_PREDICTORS_Z500 = ['z']
     if cosmoblurred:
         ALL_INPUTS = ['U_10M', 'V_10M'] + HOMEMADE_PREDICTORS + TOPO_PREDICTORS
-        input_pattern = 'x_cosmo_{date}'
+        input_pattern = 'x_cosmo_{date}.nc'
         run_id = f'{run_id}_cosmo_blurred'
     else:
         ALL_INPUTS = ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-        input_pattern = 'x_{date}'
+        input_pattern = 'x_{date}.nc'
     ALL_OUTPUTS = ['U_10M', 'V_10M']
-    AVAIL_DATES = [pd.to_datetime(v.stem.split('_')[-1]) for v in PROCESSED_DATA_FOLDER.glob('x_cosmo_*')]
+    if batch_workers is None:
+        batch_workers = os.cpu_count()
+    # Data processing and batch creation
+    if data_provider == 'local':
+        input_provider = LocalFileProvider(PROCESSED_DATA_FOLDER, input_pattern)
+        output_provider = LocalFileProvider(PROCESSED_DATA_FOLDER, 'y_{date}.nc')
+    elif data_provider == 's3':
+        input_provider = S3FileProvider('wind-downscaling', 'img_prediction_files', pattern=input_pattern)
+        output_provider = S3FileProvider('wind-downscaling', 'img_prediction_files', pattern='y_{date}.nc')
+    else:
+        raise ValueError(f'Wrong value for data provider {data_provider}: please choose between s3 and local')
+    AVAIL_DATES = [pd.to_datetime(v) for v in
+                   set(input_provider.available_dates).intersection(output_provider.available_dates)]
     START_DATE = min(AVAIL_DATES)
     END_DATE = max(AVAIL_DATES)
     NUM_DAYS = (END_DATE - START_DATE).days + 1
     END_TRAIN = START_DATE + pd.to_timedelta(int(floor((1 - validation_split) * NUM_DAYS)), unit='days')
     START_VAL = END_TRAIN + pd.to_timedelta(1, unit='day')
     NUM_VAL_DAYS = (END_DATE - START_VAL).days + 1
-    if batch_workers is None:
-        batch_workers = os.cpu_count()
-    # Data processing and batch creation
-    batch_gen_training = BatchGenerator(path_to_data=PROCESSED_DATA_FOLDER, decoder=NaiveDecoder(normalize=True),
+    batch_gen_training = BatchGenerator(input_provider, output_provider,
+                                        decoder=NaiveDecoder(normalize=True),
                                         sequence_length=sequence_length,
-                                        input_pattern=input_pattern,
                                         patch_length_pixel=img_size, batch_size=batch_size,
                                         input_variables=ALL_INPUTS,
                                         output_variables=ALL_OUTPUTS,
                                         start_date=START_DATE, end_date=END_DATE,
                                         num_workers=batch_workers)
-    batch_gen_validation = BatchGenerator(path_to_data=PROCESSED_DATA_FOLDER, decoder=NaiveDecoder(normalize=True),
+    batch_gen_validation = BatchGenerator(input_provider, output_provider,
+                                          decoder=NaiveDecoder(normalize=True),
                                           sequence_length=sequence_length,
-                                          input_pattern=input_pattern,
                                           patch_length_pixel=img_size, batch_size=batch_size,
                                           input_variables=ALL_INPUTS,
                                           output_variables=ALL_OUTPUTS,
@@ -134,4 +159,4 @@ def train_with_all_data(sequence_length=6,
 
 
 if __name__ == '__main__':
-    train_with_all_data(cosmoblurred=True)
+    train_with_all_data(cosmoblurred=True, data_provider='local')

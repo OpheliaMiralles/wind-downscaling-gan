@@ -34,7 +34,6 @@ def wind_speed_weighted_rmse(real_output, fake_output):
     tau = tf.where(estimated_wind_speed >= realized_wind_speed, t, 1 - t)
     result = tau * ((u_hat - beta * u) ** 2 + (v_hat - beta * v) ** 2)
     ws_weighted_rmse = tf.sqrt(tf.reduce_mean(result, axis=(1, 2, 3)))
-    ws_weighted_rmse = tf.where(tf.math.is_nan(ws_weighted_rmse), tf.zeros_like(ws_weighted_rmse), ws_weighted_rmse)
     return ws_weighted_rmse
 
 
@@ -47,7 +46,6 @@ def extreme_weighted_rmse(real_output, fake_output):
     weights = tf.math.divide_no_nan(sq, tf.reduce_sum(sq))
     result = weights * (real_output - fake_output) ** 2
     weighted_rmse = tf.sqrt(tf.reduce_sum(result, axis=(1, 2, 3, 4)))
-    weighted_rmse = tf.where(tf.math.is_nan(weighted_rmse), tf.zeros_like(weighted_rmse), weighted_rmse)
     return weighted_rmse
 
 
@@ -62,7 +60,6 @@ def wind_speed_rmse(real_output, fake_output):
     realized_wind_speed = tf.math.sqrt(u ** 2 + v ** 2)
     result = (realized_wind_speed - estimated_wind_speed) ** 2
     ws_rmse = tf.sqrt(tf.reduce_mean(result, axis=(1, 2, 3)))
-    ws_rmse = tf.where(tf.math.is_nan(ws_rmse), tf.zeros_like(ws_rmse), ws_rmse)
     return ws_rmse
 
 
@@ -84,11 +81,12 @@ AngularCosineDistance = lambda: tfa.metrics.MeanMetricWrapper(angular_cosine_dis
 
 
 def log_spectral_distance(real_output, fake_output):
+    epsilon = tf.keras.backend.epsilon()
     power_spectra_real = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(real_output), perm=[0, 1, 4, 2, 3])) ** 2,
                                       perm=[0, 1, 3, 4, 2])
     power_spectra_fake = tf.transpose(tf.abs(tf.transpose(tf.signal.rfft2d(fake_output), perm=[0, 1, 4, 2, 3])) ** 2,
                                       perm=[0, 1, 3, 4, 2])
-    ratio = tf.math.divide_no_nan(power_spectra_real, power_spectra_fake)
+    ratio = tf.math.divide_no_nan(power_spectra_real + epsilon, power_spectra_fake + epsilon)
 
     def log10(x):
         numerator = tf.math.log(x)
@@ -98,7 +96,6 @@ def log_spectral_distance(real_output, fake_output):
     result = (10 * log10(ratio)) ** 2
     lsd = tf.sqrt(tf.reduce_mean(result, axis=(1, 2, 3, 4)))
     lsd = tf.where(tf.math.is_nan(lsd), tf.zeros_like(lsd), lsd)
-    lsd = tf.where(tf.math.is_inf(lsd), tf.zeros_like(lsd), lsd)
     return lsd
 
 

@@ -1,22 +1,97 @@
+import abc
+import os
+import subprocess
+import tempfile
+from contextlib import contextmanager
+from functools import cached_property
 from pathlib import Path
+from typing import Collection
 
 import numpy as np
 import pandas as pd
+import parse
 import tensorflow as tf
 import xarray as xr
 
 
-# COSMO data for Switzerland has resolution 1.1km, which is an image size of 1075*691
-# we might consider daily sequences in hourly resolution (24 images per sequence) because of observed patterns
-# adding the altitude in addition to longitude and latitude would produce vectors in 5 dimensions (time, lon, lat, (alt, value))
+class Provider(abc.ABC):
+    available_dates: Collection[str]
+
+    @abc.abstractmethod
+    def load(self, date: str) -> os.PathLike:
+        ...
+
+    def unload(self, loaded: os.PathLike) -> None:
+        pass
+
+    @contextmanager
+    def provide(self, date):
+        loaded = None
+        try:
+            loaded = self.load(date)
+            yield loaded
+        finally:
+            if loaded is not None:
+                self.unload(loaded)
+
+
+class LocalFileProvider(Provider):
+    def __init__(self, path_to_data: os.PathLike, pattern: str):
+        self.data_path = Path(path_to_data)
+        if '{date' not in pattern:
+            raise ValueError("Expected a {date:fmt} placeholder, got " + pattern)
+        if '{date}' in pattern:
+            # Ensure we only parse %Y%m%d and not additional text
+            pattern = pattern.replace('{date}', '{date:d}')
+        self.pattern = pattern
+
+    @cached_property
+    def available_dates(self):
+        return {
+            str(res['date'])
+            for f in self.data_path.iterdir()
+            if (res := parse.parse(self.pattern, str(f.relative_to(self.data_path)))) is not None
+        }
+
+    def load(self, date: str) -> os.PathLike:
+        return self.data_path / self.pattern.format(date=int(date))
+
+
+class S3FileProvider(Provider):
+    def __init__(self, bucket: str, *subfolders: str, pattern: str = None):
+        if pattern is None:
+            pattern = subfolders[-1]
+            subfolders = subfolders[:-1]
+        self.bucket = '/'.join([bucket] + list(subfolders))
+        if '{date}' not in pattern:
+            raise ValueError("Expected a {date} placeholder, got " + pattern)
+        self.pattern = pattern
+
+    @cached_property
+    def available_dates(self):
+        result = subprocess.run(['s3cmd', 'ls', f's3://{self.bucket}/'], capture_output=True)
+        return {
+            str(res.named['date'])
+            for line in result.stdout.decode().splitlines()
+            if (res := parse.search(f's3://{self.bucket}/' + self.pattern, line)) is not None
+        }
+
+    def load(self, date: str) -> str:
+        dest = tempfile.mkdtemp()
+        # Download the file from S3
+        subprocess.run(['s3cmd', 'get', f's3://{self.bucket}/{self.pattern.format(date=int(date))}', str(dest) + '/'])
+        return f'{dest}/{self.pattern.format(date=int(date))}'
+
+    def unload(self, loaded: os.PathLike) -> None:
+        # Remove the downloaded file
+        Path(loaded).unlink(missing_ok=True)
 
 
 class BatchGenerator(tf.keras.utils.Sequence):
     def __init__(self,
-                 path_to_data,
+                 input_provider: Provider,
+                 output_provider: Provider,
                  decoder,
-                 input_pattern='x_{date}',
-                 output_pattern='y_{date}',
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -30,7 +105,7 @@ class BatchGenerator(tf.keras.utils.Sequence):
                  num_workers=1,
                  ):
         self.num_workers = num_workers
-        self._bg = _BatchGenerator(path_to_data, decoder, input_pattern, output_pattern, start_date, end_date,
+        self._bg = _BatchGenerator(input_provider, output_provider, decoder, start_date, end_date,
                                    sequence_length, patch_length_pixel,
                                    batch_size, transform, input_variables, output_variables)
         if self.num_workers > 1:
@@ -41,7 +116,7 @@ class BatchGenerator(tf.keras.utils.Sequence):
     def __len__(self):
         'Denotes the number of batches per epoch'
         timestamps = pd.to_datetime(self._bg.dates)
-        num_days = (max(timestamps)- min(timestamps)).days + 1
+        num_days = (max(timestamps) - min(timestamps)).days + 1
         return num_days
 
     def __getitem__(self, item):
@@ -63,9 +138,10 @@ class BatchGenerator(tf.keras.utils.Sequence):
 
 class _BatchGenerator(object):
 
-    def __init__(self, path_to_data, decoder,
-                 input_pattern='x_{date}',
-                 output_pattern='y_{date}',
+    def __init__(self,
+                 input_provider: Provider,
+                 output_provider: Provider,
+                 decoder,
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -83,18 +159,17 @@ class _BatchGenerator(object):
         self.patch_length_pixel = patch_length_pixel
         self.input_variables = list(input_variables)
         self.output_variables = list(output_variables)
-        self.dates = sorted([f.with_suffix('').name.split('_')[-1] for f in Path(path_to_data).glob('y_*.nc')])
+        self.input_provider = input_provider
+        self.output_provider = output_provider
+        dates = set(self.input_provider.available_dates).intersection(self.output_provider.available_dates)
         if start_date is not None:
             start_date = pd.to_datetime(start_date)
-            self.dates = [d for d in self.dates if pd.to_datetime(d) >= start_date]
+            dates = [d for d in dates if pd.to_datetime(d) >= start_date]
         if end_date is not None:
             end_date = pd.to_datetime(end_date)
-            self.dates = [d for d in self.dates if pd.to_datetime(d) <= end_date]
-        self.data_path = path_to_data
-        self.x_pattern = input_pattern
-        self.y_pattern = output_pattern
-        self.current_date_index = -1
-        self.prng = np.random.RandomState(seed=None)
+            dates = [d for d in dates if pd.to_datetime(d) <= end_date]
+        self.dates = sorted(dates)
+        self.reset()
 
     def next_date(self):
         self.current_date_index = (self.current_date_index + 1) % len(self.dates)
@@ -134,20 +209,22 @@ class _BatchGenerator(object):
         return crop_to_array(X, self.input_variables), crop_to_array(Y, self.output_variables)
 
     def generate(self, date):
-        input = xr.open_dataset(Path(self.data_path, self.x_pattern.format(date=date)).with_suffix('.nc'))
-        output = xr.open_dataset(Path(self.data_path, self.y_pattern.format(date=date)).with_suffix('.nc'))
-        input_batch = []
-        output_batch = []
-        for b in range(self.batch_size):
-            X, Y = self.get_random_square_sequences_per_day(input, output)
-            X = self.decoder(X)
-            if self.insert_random_img_transforms:
-                X, Y = self.transform_sequence(X, Y)
-            input_batch.append(X)
-            output_batch.append(Y)
-        in_batch = np.stack(input_batch, axis=0)
-        out_batch = np.stack(output_batch, axis=0)
-        return (in_batch, out_batch)
+        with self.input_provider.provide(date) as input_path, \
+                self.output_provider.provide(date) as output_path:
+            input = xr.open_dataset(input_path)
+            output = xr.open_dataset(output_path)
+            input_batch = []
+            output_batch = []
+            for b in range(self.batch_size):
+                X, Y = self.get_random_square_sequences_per_day(input, output)
+                X = self.decoder(X)
+                if self.insert_random_img_transforms:
+                    X, Y = self.transform_sequence(X, Y)
+                input_batch.append(X)
+                output_batch.append(Y)
+            in_batch = np.stack(input_batch, axis=0)
+            out_batch = np.stack(output_batch, axis=0)
+            return (in_batch, out_batch)
 
     def __next__(self):
         date = self.next_date()

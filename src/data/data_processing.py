@@ -1,6 +1,7 @@
 import os
 import pathlib
 import re
+from datetime import date
 from io import StringIO
 from typing import Tuple
 
@@ -558,7 +559,7 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path: str, DEM_data_path: str,
                                  start_date, end_date,
                                  topo_variables_included=('tpi_500', 'ridge_index_norm'),
-                                 cosmo_variables_included=('U_10M', 'V_10M')):
+                                 cosmo_variables_included=('U_10M', 'V_10M'), blurring=4):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
     print(f'Reading DEM data files')
@@ -586,12 +587,12 @@ def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path:
             cosmo_vars_to_drop = [v for v in cosmo.variables if
                                   v not in cosmo_variables_included + tuple(cosmo._coord_names)]
             cosmo_outputs = cosmo.drop_vars(cosmo_vars_to_drop)
+            cosmo_inputs = cosmo.drop_vars(cosmo_vars_to_drop)
             print('Blurring COSMO1 image to obtain inputs')
-            cosmo_inputs = cosmo_outputs.apply(lambda x: gaussian_filter(x, sigma=9))
+            cosmo_inputs = cosmo_inputs.map(gaussian_filter, sigma=blurring)
             print('Adjusting resolution of topographic descriptors to COSMO1 image size')
             temp_inputs_topo = inputs_topo \
                 .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest').drop_vars(topo_vars_to_drop)
-            # Replicate static inputs for time series concordance
             time_steps = cosmo.time.shape
             print(
                 f'Replicating {time_steps[0]} times the static topographic inputs to respect the time series data format for inputs')
