@@ -33,6 +33,7 @@ def wind_speed_weighted_rmse(real_output, fake_output):
     beta = tf.math.divide(epsilon + realized_wind_speed, epsilon + estimated_wind_speed)
     tau = tf.where(estimated_wind_speed >= realized_wind_speed, t, 1 - t)
     result = tau * ((u_hat - beta * u) ** 2 + (v_hat - beta * v) ** 2)
+    result = tf.where(tf.math.is_nan(result), tf.zeros_like(result), result)
     ws_weighted_rmse = tf.sqrt(tf.reduce_mean(result, axis=(1, 2, 3)))
     return ws_weighted_rmse
 
@@ -45,6 +46,7 @@ def extreme_weighted_rmse(real_output, fake_output):
     # Weights proportional to extremeness of winds
     weights = tf.math.divide_no_nan(sq, tf.reduce_sum(sq))
     result = weights * (real_output - fake_output) ** 2
+    result = tf.where(tf.math.is_nan(result), tf.zeros_like(result), result)
     weighted_rmse = tf.sqrt(tf.reduce_sum(result, axis=(1, 2, 3, 4)))
     return weighted_rmse
 
@@ -59,6 +61,7 @@ def wind_speed_rmse(real_output, fake_output):
     estimated_wind_speed = tf.math.sqrt(u_hat ** 2 + v_hat ** 2)
     realized_wind_speed = tf.math.sqrt(u ** 2 + v ** 2)
     result = (realized_wind_speed - estimated_wind_speed) ** 2
+    result = tf.where(tf.math.is_nan(result), tf.zeros_like(result), result)
     ws_rmse = tf.sqrt(tf.reduce_mean(result, axis=(1, 2, 3)))
     return ws_rmse
 

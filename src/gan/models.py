@@ -1,6 +1,5 @@
 from math import log2
 
-import tensorflow as tf
 import tensorflow.keras.layers as kl
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.layers import LeakyReLU
@@ -22,7 +21,6 @@ def make_generator_no_noise(
     img_shape = (image_size, image_size)
     tshape = (n_timesteps,) + img_shape
     input_image = kl.Input(shape=tshape + (in_channels,), batch_size=batch_size, name='input_image')
-    # Concatenate inputs
     x = input_image
 
     # Add features and decrease image size - in 2 steps
@@ -50,20 +48,19 @@ def make_generator_no_noise(
 
     # Re-introduce residuals from before (skip connection)
     x = kl.Concatenate()([x, res_4])
-    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(
-        x)
+    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
 
     # Skip connection 2
     x = kl.Concatenate()([x, res_2])
     if feature_channels / 8 >= out_channels:
+        x = kl.TimeDistributed(kl.UpSampling2D(size=(2, 2), interpolation='bilinear'))(x)
         x = kl.TimeDistributed(
-            kl.Conv2DTranspose(feature_channels // 8, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
+            kl.Conv2DTranspose(feature_channels // 8, (5, 5), padding='same', activation=LeakyReLU(0.2)))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, feature_channels // 8)
     else:
-        x = kl.TimeDistributed(
-            kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
+        x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
     x = kl.BatchNormalization()(x)
     x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation='linear'),
@@ -118,20 +115,19 @@ def make_generator(
 
     # Re-introduce residuals from before (skip connection)
     x = kl.Concatenate()([x, res_4])
-    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(
-        x)
+    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
 
     # Skip connection 2
     x = kl.Concatenate()([x, res_2])
     if feature_channels / 8 >= out_channels:
+        x = kl.TimeDistributed(kl.UpSampling2D(size=(2, 2), interpolation='bilinear'))(x)
         x = kl.TimeDistributed(
-            kl.Conv2DTranspose(feature_channels // 8, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
+            kl.Conv2DTranspose(feature_channels // 8, (5, 5), padding='same', activation=LeakyReLU(0.2)))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, feature_channels // 8)
     else:
-        x = kl.TimeDistributed(
-            kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
+        x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
         assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
     x = kl.BatchNormalization()(x)
     x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation='linear'),

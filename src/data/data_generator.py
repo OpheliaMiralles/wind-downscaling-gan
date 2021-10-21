@@ -273,7 +273,7 @@ class NoiseGenerator(object):
 
 
 class FlexibleNoiseGenerator(object):
-    def __init__(self, noise_shape, std=10, random_seed=None):
+    def __init__(self, noise_shape, std=1, random_seed=None):
         self.noise_shape = noise_shape
         self.prng = (tf.random.Generator.from_seed(random_seed)
                      if random_seed is not None
