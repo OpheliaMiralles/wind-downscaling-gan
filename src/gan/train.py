@@ -1,21 +1,22 @@
 import tensorflow as tf
 
-from gan.metrics import log_spectral_distance, wind_speed_weighted_rmse, extreme_weighted_rmse, angular_cosine_distance
+from gan.metrics import log_spectral_distance, extreme_weighted_rmse
 
-generator_losses = [wind_speed_weighted_rmse, log_spectral_distance, angular_cosine_distance, extreme_weighted_rmse]
+generator_losses = [log_spectral_distance, extreme_weighted_rmse]
+scaling_factors = [1., 10.]
 
 
 def discriminator_loss(real_output, fake_output):
-    return tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
+    return -(tf.reduce_mean(real_output) - tf.reduce_mean(fake_output))
 
 
 def generator_loss(real_output, fake_output):
-    return tf.reduce_mean([loss(real_output, fake_output) for loss in
-                           generator_losses])
+    return tf.reduce_mean([sf * loss(real_output, fake_output) for loss, sf in
+                           zip(generator_losses, scaling_factors)])
 
 
 def generator_optimizer():
-    return tf.keras.optimizers.Adam(lr=1e-4, epsilon=0.1)
+    return tf.keras.optimizers.Adam(lr=1e-4, beta_1=0, beta_2=0.9, epsilon=0.1)
 
 
 class discriminator_score_real(tf.keras.metrics.Mean):
@@ -37,4 +38,4 @@ class discriminator_score_fake(tf.keras.metrics.Mean):
 
 
 def discriminator_optimizer():
-    return tf.keras.optimizers.Adam(lr=1e-3)
+    return tf.keras.optimizers.Adam(lr=4e-4, beta_1=0, beta_2=0.9, epsilon=0.1)
