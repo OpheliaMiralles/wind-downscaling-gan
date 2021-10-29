@@ -20,9 +20,9 @@ PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
 def train_with_all_data(sequence_length=6,
-                        img_size=256,
-                        batch_size=8,
-                        noise_channels=100,
+                        img_size=128,
+                        batch_size=32,
+                        noise_channels=20,
                         cosmoblurred=False,
                         run_id=datetime.today().strftime('%Y%m%d_%H%M'),
                         saving_frequency=10,
@@ -35,7 +35,7 @@ def train_with_all_data(sequence_length=6,
     ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
     ERA5_PREDICTORS_Z500 = ['z']
     if cosmoblurred:
-        ALL_INPUTS = ['U_10M', 'V_10M'] + HOMEMADE_PREDICTORS + TOPO_PREDICTORS
+        ALL_INPUTS = ['U_10M', 'V_10M'] #+ HOMEMADE_PREDICTORS + TOPO_PREDICTORS
         input_pattern = 'x_cosmo_{date}.nc'
         run_id = f'{run_id}_cosmo_blurred'
     else:
@@ -76,7 +76,7 @@ def train_with_all_data(sequence_length=6,
                                        high_res_channels=OUT_CHANNELS, n_timesteps=sequence_length)
     print(f"Discriminator: {discriminator.count_params():,} weights")
     noise_shape = (batch_size, sequence_length, img_size, img_size, noise_channels)
-    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=1))
+    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=0.01))
     print(f"Total: {gan.generator.count_params() + gan.discriminator.count_params():,} weights")
     gan.compile(generator_optimizer=train.generator_optimizer(),
                 generator_metrics=[metrics.AngularCosineDistance(),

@@ -257,16 +257,13 @@ class NoiseGenerator(object):
                      else tf.random.get_global_generator())
         self.std = std
 
-    def __call__(self, bs=None, shape=None):
+    def __call__(self, bs=None):
         mean = 0
         std = self.std
-        if shape is not None:
-            bs, t, x, y = shape
-        else:
-            bs = self.noise_shape[0] if bs is None else bs
-            t = self.noise_shape[1]
-            x = self.noise_shape[2]
-            y = self.noise_shape[3]
+        bs = self.noise_shape[0] if bs is None else bs
+        t = self.noise_shape[1]
+        x = self.noise_shape[2]
+        y = self.noise_shape[3]
         time_varying_noise = tf.reshape(tf.repeat(self.prng.normal((bs, t), mean, std), x * y), (bs, t, x, y))
         lon_varying_noise = tf.reshape(tf.repeat(self.prng.normal((bs, x), mean, std), t * y), (bs, t, x, y))
         lat_varying_noise = tf.reshape(tf.repeat(self.prng.normal((bs, y), mean, std), t * x), (bs, t, x, y))
@@ -283,16 +280,13 @@ class FlexibleNoiseGenerator(object):
                      else tf.random.get_global_generator())
         self.std = std
 
-    def __call__(self, bs=None, channels=None, shape=None, std=None):
+    def __call__(self, bs=None, channels=None, std=None):
         mean = 0
-        if shape is not None:
-            bs, t, x, y, channels = shape
-        else:
-            bs = self.noise_shape[0] if bs is None else bs
-            t = self.noise_shape[1]
-            x = self.noise_shape[2]
-            y = self.noise_shape[3]
-            channels = self.noise_shape[4] if channels is None else channels
+        bs = self.noise_shape[0] if bs is None else bs
+        t = self.noise_shape[1]
+        x = self.noise_shape[2]
+        y = self.noise_shape[3]
+        channels = self.noise_shape[4] if channels is None else channels
         std = std or self.std
         return self.prng.normal(tf.convert_to_tensor((bs, t, x, y, channels), dtype=tf.int32), mean=mean, stddev=std)
 

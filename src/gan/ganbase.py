@@ -39,9 +39,9 @@ class GAN(Model):
             gradient_reg = gamma * tf.reduce_mean((gradients - 1) ** 2)
             # Run forward pass on the discriminator
             with tf.GradientTape() as disc_tape:
-                hr = high_res + self.noise_generator(batch_size, channels=high_res.shape[-1])
+                hr = high_res + self.noise_generator(batch_size, channels=fake_high_res.shape[-1])
                 high_res_score = self.discriminator([low_res, hr], training=True)
-                fhr = fake_high_res + self.noise_generator(batch_size, channels=high_res.shape[-1])
+                fhr = fake_high_res + self.noise_generator(batch_size, channels=fake_high_res.shape[-1])
                 fake_high_res_score = self.discriminator([low_res, fhr], training=True)
                 disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
                                                              regularization_losses=[gradient_reg])
