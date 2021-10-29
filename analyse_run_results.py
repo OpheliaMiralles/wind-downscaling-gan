@@ -130,8 +130,3 @@ def plot_prediction(run_id, start_date, end_date, sequence_length=6,
                 fig = show([inp, out, res])
                 fig.savefig(plot_path)
                 j += 1
-
-
-if __name__ == '__main__':
-    plot_prediction(cosmoblurred=True, data_provider='local', start_date='20170101', end_date='20171231',
-                    run_id='20211016_1421', nb_epochs=270)

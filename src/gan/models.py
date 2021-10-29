@@ -1,5 +1,6 @@
 from math import log2
 
+import tensorflow as tf
 import tensorflow.keras.layers as kl
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.layers import LeakyReLU
@@ -25,14 +26,14 @@ def make_generator_no_noise(
 
     # Add features and decrease image size - in 2 steps
     intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=4))(x)
-    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (9, 9), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=3))(x)
+    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (8, 8), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, intermediate_features)
     res_2 = x  # Keep residuals for later
 
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=2))(x)
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (5, 5), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=1))(x)
+    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (4, 4), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
     res_4 = x  # Keep residuals for later
@@ -92,14 +93,14 @@ def make_generator(
 
     # Add features and decrease image size - in 2 steps
     intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=4))(x)
-    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (9, 9), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=3))(x)
+    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (8, 8), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, intermediate_features)
     res_2 = x  # Keep residuals for later
 
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=2))(x)
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (5, 5), strides=2, activation=LeakyReLU(0.2)))(x)
+    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=1))(x)
+    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (4, 4), strides=2, activation=LeakyReLU(0.2)))(x)
     x = kl.BatchNormalization()(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
     res_4 = x  # Keep residuals for later
@@ -158,13 +159,15 @@ def make_discriminator(
     # First branch: high res only
     hr = kl.ConvLSTM2D(high_res_channels, (3, 3), padding='same', return_sequences=True)(high_res)
     hr = kl.TimeDistributed(
-        SpectralNormalization(kl.Conv2D(feature_channels, (3, 3), padding='same', activation=LeakyReLU(0.2))))(hr)
+        SpectralNormalization(kl.Conv2D(feature_channels, (3, 3), padding='same',
+                                        activation=LeakyReLU(0.2))))(hr)
 
     # Second branch: Mix both inputs
     mix = kl.Concatenate()([low_res, high_res])
     mix = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(mix)
     mix = kl.TimeDistributed(
-        SpectralNormalization(kl.Conv2D(feature_channels, (3, 3), padding='same', activation=LeakyReLU(0.2))))(mix)
+        SpectralNormalization(kl.Conv2D(feature_channels, (3, 3), padding='same',
+                                        activation=LeakyReLU(0.2))))(mix)
 
     # Merge everything together
     x = kl.Concatenate()([hr, mix])
@@ -176,14 +179,38 @@ def make_discriminator(
     def channels(z):
         return z.shape[-1]
 
+    while img_size(x) >= 16:
+        x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
+        x = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3,
+                                            activation=LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
+    shortcut = x
     while img_size(x) >= 4:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
         x = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3, activation=LeakyReLU(0.2))))(x)
+            SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3,
+                                            activation=LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
+    if img_size(x) == 1:
+        kernel_size = img_size(shortcut)
+        shortcut = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(channels(x), kernel_size,
+                                            activation=LeakyReLU(0.2))), name='shortcut_conv_1')(shortcut)
+    else:
+        strides = int(tf.math.ceil((2 + img_size(shortcut)) / (img_size(x) - 1)))
+        margin = 2
+        padding = int(tf.math.ceil((strides * (img_size(x) - 1) - img_size(shortcut)) / 2) + 1 + margin)
+        kernel_size = int(strides * (1 - img_size(x)) + img_size(shortcut) + 2 * padding)
+        shortcut = kl.TimeDistributed(kl.ZeroPadding2D(padding=padding))(shortcut)
+        shortcut = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(channels(x), kernel_size, strides=strides,
+                                            activation=LeakyReLU(0.2))), name='shortcut_conv')(shortcut)
+    # Split connection
+    x = kl.add([x, shortcut])
 
     while img_size(x) > 2:
         x = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x) * 2, (3, 3), strides=2, activation=LeakyReLU(0.2))))(x)
+            SpectralNormalization(kl.Conv2D(channels(x) * 2, (3, 3), strides=2,
+                                            activation=LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
     x = kl.TimeDistributed(kl.Flatten())(x)
     assert tuple(x.shape)[:-1] == (batch_size, n_timesteps)  # Unknown number of channels
     x = kl.TimeDistributed(kl.Dense(1, activation='linear'))(x)

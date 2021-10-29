@@ -6,7 +6,7 @@ from tensorflow.keras import Model
 
 
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=2,
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3,
                  generator_additional_losses=None, *args,
                  **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
@@ -39,8 +39,10 @@ class GAN(Model):
             gradient_reg = gamma * tf.reduce_mean((gradients - 1) ** 2)
             # Run forward pass on the discriminator
             with tf.GradientTape() as disc_tape:
-                high_res_score = self.discriminator([low_res, high_res], training=True)
-                fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
+                hr = high_res + self.noise_generator(batch_size, channels=high_res.shape[-1])
+                high_res_score = self.discriminator([low_res, hr], training=True)
+                fhr = fake_high_res + self.noise_generator(batch_size, channels=high_res.shape[-1])
+                fake_high_res_score = self.discriminator([low_res, fhr], training=True)
                 disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
                                                              regularization_losses=[gradient_reg])
             grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
@@ -68,7 +70,8 @@ class GAN(Model):
 
         # Collect metrics to return
         return_metrics = {'d_loss': disc_loss_unregularized,
-                          'g_loss': gen_loss}
+                          'g_loss': gen_loss,
+                          'd_gradient_pen': tf.reduce_mean(gradients)}
         for metric in self.metrics:
             result = metric.result()
             if isinstance(result, dict):
