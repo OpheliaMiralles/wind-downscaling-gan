@@ -86,8 +86,7 @@ def train_with_all_data(sequence_length=6,
                       metrics=[metrics.AngularCosineDistance(),
                                metrics.LogSpectralDistance(),
                                metrics.WeightedRMSEForExtremes(),
-                               metrics.WindSpeedWeightedRMSE(),
-                               metrics.SpatialKS()],
+                               metrics.WindSpeedWeightedRMSE()],
                       loss=train.generator_loss)
     # Saving results
     checkpoint_path_weights = Path('./checkpoints/generator') / run_id / 'weights-{epoch:02d}.ckpt'

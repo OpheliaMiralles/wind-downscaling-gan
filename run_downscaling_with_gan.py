@@ -57,7 +57,6 @@ def train_with_all_data(sequence_length=6,
                    set(input_provider.available_dates).intersection(output_provider.available_dates)]
     START_DATE = min(AVAIL_DATES)
     END_DATE = max(AVAIL_DATES)
-    NUM_DAYS = (END_DATE - START_DATE).days + 1
     batch_gen_training = BatchGenerator(input_provider, output_provider,
                                         decoder=NaiveDecoder(normalize=True),
                                         sequence_length=sequence_length,
@@ -83,8 +82,7 @@ def train_with_all_data(sequence_length=6,
                 generator_metrics=[metrics.AngularCosineDistance(),
                                    metrics.LogSpectralDistance(),
                                    metrics.WeightedRMSEForExtremes(),
-                                   metrics.WindSpeedWeightedRMSE(),
-                                   metrics.SpatialKS()],
+                                   metrics.WindSpeedWeightedRMSE()],
                 discriminator_optimizer=train.discriminator_optimizer(),
                 discriminator_loss=train.discriminator_loss,
                 metrics=[metrics.discriminator_score_fake(), metrics.discriminator_score_real()])
