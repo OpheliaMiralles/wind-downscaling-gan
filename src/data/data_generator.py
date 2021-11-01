@@ -47,11 +47,12 @@ class LocalFileProvider(Provider):
 
     @cached_property
     def available_dates(self):
-        return {
-            str(res['date'])
-            for f in self.data_path.iterdir()
-            if (res := parse.parse(self.pattern, str(f.relative_to(self.data_path)))) is not None
-        }
+        dates = set()
+        for f in self.data_path.iterdir():
+            res = parse.parse(self.pattern, str(f.relative_to(self.data_path)))
+            if res is not None:
+                dates.add(str(res['date']))
+        return dates
 
     def load(self, date: str) -> os.PathLike:
         return self.data_path / self.pattern.format(date=int(date))
@@ -70,11 +71,12 @@ class S3FileProvider(Provider):
     @cached_property
     def available_dates(self):
         result = subprocess.run(['s3cmd', 'ls', f's3://{self.bucket}/'], capture_output=True)
-        return {
-            str(res.named['date'])
-            for line in result.stdout.decode().splitlines()
-            if (res := parse.search(f's3://{self.bucket}/' + self.pattern, line)) is not None
-        }
+        dates = set()
+        for line in result.stdout.decode().splitlines():
+            res = parse.search(f's3://{self.bucket}/' + self.pattern, line)
+            if res is not None:
+                dates.add(str(res.named['date']))
+        return dates
 
     def load(self, date: str) -> str:
         dest = tempfile.mkdtemp()
