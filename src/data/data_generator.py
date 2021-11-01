@@ -3,7 +3,10 @@ import os
 import subprocess
 import tempfile
 from contextlib import contextmanager
-from functools import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
 from pathlib import Path
 from typing import Collection
 

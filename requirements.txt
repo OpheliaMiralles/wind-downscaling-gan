@@ -15,3 +15,4 @@ netCDF4==1.5.6
 h5py== 2.10.0
 hdf5==1.10.6
 mpi4py==3.1.1
+cached_property
