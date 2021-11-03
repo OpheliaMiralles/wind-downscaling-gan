@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 from contextlib import contextmanager
+
 try:
     from functools import cached_property
 except ImportError:
@@ -114,7 +115,7 @@ class BatchGenerator(tf.keras.utils.Sequence):
                                    sequence_length, patch_length_pixel,
                                    batch_size, transform, input_variables, output_variables)
         if self.num_workers > 1:
-            self.enqueuer = tf.keras.utils.GeneratorEnqueuer(self._bg, use_multiprocessing=True)
+            self.enqueuer = tf.keras.utils.OrderedEnqueuer(self._bg, use_multiprocessing=True)
         else:
             self.enqueuer = None
 
@@ -230,6 +231,12 @@ class _BatchGenerator(object):
             in_batch = np.stack(input_batch, axis=0)
             out_batch = np.stack(output_batch, axis=0)
             return (in_batch, out_batch)
+
+    def __len__(self):
+        return len(self.dates)
+
+    def __getitem__(self, item):
+        return self.generate(self.dates[item])
 
     def __next__(self):
         date = self.next_date()

@@ -1,5 +1,4 @@
 import os
-from math import floor
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -15,7 +14,7 @@ from gan import train, metrics
 from gan.ganbase import GAN
 from gan.models import make_generator, make_discriminator, make_generator_no_noise
 
-DATA_ROOT = Path('./data')
+DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
@@ -23,7 +22,6 @@ def plot_prediction(run_id, start_date, end_date, sequence_length=6,
                     img_size=256,
                     batch_size=8,
                     noise_channels=100,
-                    validation_split=0.25,
                     cosmoblurred=False,
                     batch_workers=None,
                     data_provider: str = 'local',
@@ -57,9 +55,6 @@ def plot_prediction(run_id, start_date, end_date, sequence_length=6,
     START_DATE = pd.to_datetime(start_date)
     END_DATE = pd.to_datetime(end_date)
     NUM_DAYS = (END_DATE - START_DATE).days + 1
-    END_TRAIN = START_DATE + pd.to_timedelta(int(floor((1 - validation_split) * NUM_DAYS)), unit='days')
-    START_VAL = END_TRAIN + pd.to_timedelta(1, unit='day')
-    NUM_VAL_DAYS = (END_DATE - START_VAL).days + 1
     batch_gen = BatchGenerator(input_provider, output_provider,
                                decoder=NaiveDecoder(normalize=True),
                                sequence_length=sequence_length,
@@ -70,10 +65,9 @@ def plot_prediction(run_id, start_date, end_date, sequence_length=6,
                                num_workers=batch_workers)
     inputs = []
     outputs = []
-    print('Creating a validation set for final plots')
     with batch_gen as batch:
-        for b in range(NUM_VAL_DAYS):
-            print(f'Creating batch {b + 1}/{NUM_VAL_DAYS}')
+        for b in range(NUM_DAYS):
+            print(f'Creating batch {b + 1}/{NUM_DAYS}')
             x, y = next(batch)
             inputs.append(x)
             outputs.append(y)
@@ -120,7 +114,7 @@ def plot_prediction(run_id, start_date, end_date, sequence_length=6,
             './checkpoints/gan') / run_id / 'weights-{epoch:02d}.ckpt'
         checkpoint_path_weights.parent.mkdir(exist_ok=True, parents=True)
 
-        for epoch in np.arange(saving_frequency, nb_epochs, saving_frequency):
+        for epoch in np.arange(saving_frequency, nb_epochs+1, saving_frequency):
             gan.load_weights(str(checkpoint_path_weights).format(epoch=epoch))
             noise = FlexibleNoiseGenerator(noise_shape)()
             for i in range(0, batch_size * 6, batch_size):

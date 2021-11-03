@@ -446,7 +446,7 @@ def process_station_txt_file_from_MeteoSwiss(path_to_file: pathlib.Path):
 
 def process_topographic_variables_file(path_to_file: str):
     path_to_file = pathlib.Path(path_to_file)
-    names = ('tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+    names = ('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
              'we_derivative', 'sn_derivative',
              'slope', 'aspect')
     if all((path_to_file.parent / f"topo_{name}.nc").exists() for name in names):
@@ -467,7 +467,7 @@ def process_topographic_variables_file(path_to_file: str):
     def Sx(azimuth=0, radius=500):
         pass
 
-    variables = (tpi, *vr, *gradient)
+    variables = (dem, tpi, *vr, *gradient)
     for data, name in zip(variables, names):
         da = xr.DataArray(data,
                           coords=dem.coords,

@@ -8,34 +8,35 @@ from silence_tensorflow import silence_tensorflow
 silence_tensorflow()
 import tensorflow as tf
 import tensorflow.keras.callbacks as cb
-
+import numpy as np
 from data.data_generator import BatchGenerator, NaiveDecoder, LocalFileProvider, S3FileProvider
 from data.data_generator import FlexibleNoiseGenerator
 from gan import train, metrics
 from gan.ganbase import GAN
 from gan.models import make_generator, make_discriminator
 
-DATA_ROOT = Path('./data')
+DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
 def train_with_all_data(sequence_length=6,
                         img_size=128,
-                        batch_size=32,
+                        batch_size=16,
                         noise_channels=20,
                         cosmoblurred=False,
                         run_id=datetime.today().strftime('%Y%m%d_%H%M'),
                         saving_frequency=10,
                         nb_epochs=500,
                         batch_workers=None,
-                        data_provider: str = 'local'):
+                        data_provider: str = 'local',
+                        eager_batches=False):
     print(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
     TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
-    HOMEMADE_PREDICTORS = ['e_plus', 'e_minus', 'w_speed', 'w_angle']
+    HOMEMADE_PREDICTORS = ['w_speed', 'w_angle']
     ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
     ERA5_PREDICTORS_Z500 = ['z']
     if cosmoblurred:
-        ALL_INPUTS = ['U_10M', 'V_10M'] #+ HOMEMADE_PREDICTORS + TOPO_PREDICTORS
+        ALL_INPUTS = ['U_10M', 'V_10M'] + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
         input_pattern = 'x_cosmo_{date}.nc'
         run_id = f'{run_id}_cosmo_blurred'
     else:
@@ -57,6 +58,8 @@ def train_with_all_data(sequence_length=6,
                    set(input_provider.available_dates).intersection(output_provider.available_dates)]
     START_DATE = min(AVAIL_DATES)
     END_DATE = max(AVAIL_DATES)
+    NUM_DAYS = (END_DATE - START_DATE).days + 1
+    NUM_DAYS = 10
     batch_gen_training = BatchGenerator(input_provider, output_provider,
                                         decoder=NaiveDecoder(normalize=True),
                                         sequence_length=sequence_length,
@@ -67,6 +70,20 @@ def train_with_all_data(sequence_length=6,
                                         num_workers=batch_workers)
     INPUT_CHANNELS = len(ALL_INPUTS)
     OUT_CHANNELS = len(ALL_OUTPUTS)
+    if eager_batches:
+        inputs = []
+        outputs = []
+        with batch_gen_training as batch:
+            for b in range(NUM_DAYS):
+                print(f'Creating batch {b + 1}/{NUM_DAYS}')
+                x, y = next(batch)
+                inputs.append(x)
+                outputs.append(y)
+        x = np.concatenate(inputs)
+        y = np.concatenate(outputs)
+    else:
+        x = batch_gen_training
+        y = None
     # Creating GAN
     generator = make_generator(image_size=img_size, in_channels=INPUT_CHANNELS,
                                noise_channels=noise_channels, out_channels=OUT_CHANNELS,
@@ -99,9 +116,9 @@ def train_with_all_data(sequence_length=6,
         cb.ModelCheckpoint(str(checkpoint_path_weights), save_best_only=False, period=saving_frequency,
                            save_weights_only=True),
     ]
-    gan.fit(x=batch_gen_training, callbacks=callbacks, epochs=nb_epochs,
+    gan.fit(x=x, y=y, callbacks=callbacks, epochs=nb_epochs,
             workers=batch_workers, use_multiprocessing=True)
 
 
 if __name__ == '__main__':
-    train_with_all_data(cosmoblurred=True, data_provider='local')
+    train_with_all_data(cosmoblurred=False, data_provider='s3', eager_batches=True)
