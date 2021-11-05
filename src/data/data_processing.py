@@ -582,7 +582,7 @@ def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path:
         if not all_inputs_there:
             print(f'Reading data files for day {d}')
             print(f'Reading COSMO1 data files')
-            cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'{d_str}*.nc')).sel(time=d_str)
+            cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'*{d_str}*.nc')).sel(time=d_str)
             cosmo_vars_to_drop = [v for v in cosmo.variables if
                                   v not in cosmo_variables_included + tuple(cosmo._coord_names)]
             cosmo_outputs = cosmo.drop_vars(cosmo_vars_to_drop)
