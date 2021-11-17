@@ -31,10 +31,10 @@ def train_with_all_data(sequence_length=6,
                         data_provider: str = 'local',
                         eager_batches=False):
     print(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
-    TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
-    HOMEMADE_PREDICTORS = ['w_speed', 'w_angle']
-    ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
-    ERA5_PREDICTORS_Z500 = ['z']
+    TOPO_PREDICTORS = []
+    HOMEMADE_PREDICTORS = ['e_plus', 'e_minus']
+    ERA5_PREDICTORS_SURFACE = ['u10', 'v10'] #, 'blh', 'fsr', 'sp', 'sshf']
+    ERA5_PREDICTORS_Z500 = [] #['z']
     if cosmoblurred:
         ALL_INPUTS = ['U_10M', 'V_10M'] + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
         input_pattern = 'x_cosmo_{date}.nc'
@@ -59,7 +59,6 @@ def train_with_all_data(sequence_length=6,
     START_DATE = min(AVAIL_DATES)
     END_DATE = max(AVAIL_DATES)
     NUM_DAYS = (END_DATE - START_DATE).days + 1
-    NUM_DAYS = 10
     batch_gen_training = BatchGenerator(input_provider, output_provider,
                                         decoder=NaiveDecoder(normalize=True),
                                         sequence_length=sequence_length,
