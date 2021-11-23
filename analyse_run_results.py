@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from cartopy.crs import epsg
+from matplotlib.colors import LogNorm
 from silence_tensorflow import silence_tensorflow
 
 from data.data_processing import HigherResPlateCarree
@@ -318,8 +319,8 @@ def plot_predicted_maps_Swizterland(run_id, date, epoch, hour, variable_to_plot,
     vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
     inp.plot(cmap='jet', ax=ax1, transform=crs_cosmo, vmin=vmin, vmax=vmax,
              cbar_kwargs=cbar_kwargs)
-    dem.plot(cmap='jet', ax=ax2, transform=crs_cosmo,
-             cbar_kwargs={"orientation": "horizontal", "shrink": 0.7})
+    dem.plot(ax=ax2, transform=crs_cosmo, cmap=plt.cm.terrain, norm=LogNorm(vmin=58, vmax=4473),
+             cbar_kwargs={"orientation": "horizontal", "shrink": 0.7, "label": f"terrain height (m)"})
     cosmo.plot(cmap='jet', ax=ax3, transform=crs_cosmo,
                cbar_kwargs=cbar_kwargs)
     pred.plot(cmap='jet', ax=ax6, transform=crs_cosmo, vmin=vmin, vmax=vmax,
@@ -329,8 +330,8 @@ def plot_predicted_maps_Swizterland(run_id, date, epoch, hour, variable_to_plot,
     ax2.set_title('DEM')
     ax3.set_title('COSMO-1 data')
     ax6.set_title('Predicted')
-    for metric, ax, name, cmap in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax4, ax5], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
-                                      ['brg', 'Reds']):
+    for metric, ax, name, cmap, vmin in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax4, ax5], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
+                                            ['brg', 'Reds'], [-1., 0.]):
         real_output = output_image[['U_10M', 'V_10M']].sel(x_1=np.unique(predicted.x_1[:]), y_1=np.unique(predicted.y_1[:]))
         fake_output = predicted[['u10', 'v10']]
         dist = metric(real_output, fake_output)
@@ -339,6 +340,8 @@ def plot_predicted_maps_Swizterland(run_id, date, epoch, hour, variable_to_plot,
     for ax in axes:
         ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
         ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+    ax2.add_feature(cartopy.feature.RIVERS.with_scale('10m'), color=plt.cm.terrain(0.))
+    ax2.add_feature(cartopy.feature.LAKES.with_scale('10m'), color=plt.cm.terrain(0.))
     fig.tight_layout()
     return fig
 
