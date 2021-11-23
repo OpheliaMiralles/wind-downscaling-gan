@@ -31,10 +31,10 @@ def train_with_all_data(sequence_length=6,
                         data_provider: str = 'local',
                         eager_batches=False):
     print(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
-    TOPO_PREDICTORS = []
-    HOMEMADE_PREDICTORS = ['e_plus', 'e_minus']
-    ERA5_PREDICTORS_SURFACE = ['u10', 'v10'] #, 'blh', 'fsr', 'sp', 'sshf']
-    ERA5_PREDICTORS_Z500 = [] #['z']
+    TOPO_PREDICTORS = ['elevation']
+    HOMEMADE_PREDICTORS = []
+    ERA5_PREDICTORS_SURFACE = ['u10', 'v10']  # , 'blh', 'fsr', 'sp', 'sshf']
+    ERA5_PREDICTORS_Z500 = []  # ['z']
     if cosmoblurred:
         ALL_INPUTS = ['U_10M', 'V_10M'] + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
         input_pattern = 'x_cosmo_{date}.nc'
@@ -58,9 +58,8 @@ def train_with_all_data(sequence_length=6,
                    set(input_provider.available_dates).intersection(output_provider.available_dates)]
     START_DATE = min(AVAIL_DATES)
     END_DATE = max(AVAIL_DATES)
-    NUM_DAYS = (END_DATE - START_DATE).days + 1
     batch_gen_training = BatchGenerator(input_provider, output_provider,
-                                        decoder=NaiveDecoder(normalize=True),
+                                        decoder=NaiveDecoder(normalize=False),
                                         sequence_length=sequence_length,
                                         patch_length_pixel=img_size, batch_size=batch_size,
                                         input_variables=ALL_INPUTS,
@@ -72,6 +71,7 @@ def train_with_all_data(sequence_length=6,
     if eager_batches:
         inputs = []
         outputs = []
+        NUM_DAYS = min(500, len(AVAIL_DATES))
         with batch_gen_training as batch:
             for b in range(NUM_DAYS):
                 print(f'Creating batch {b + 1}/{NUM_DAYS}')
@@ -120,4 +120,4 @@ def train_with_all_data(sequence_length=6,
 
 
 if __name__ == '__main__':
-    train_with_all_data(cosmoblurred=False, data_provider='s3', eager_batches=True)
+    train_with_all_data(cosmoblurred=False, data_provider='local', eager_batches=True)

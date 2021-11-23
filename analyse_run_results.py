@@ -2,20 +2,17 @@ import os
 from pathlib import Path
 
 import cartopy
-import cartopy.crs as ccrs
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 from cartopy.crs import epsg
-
-crs_cosmo = epsg(21781)
-
 from silence_tensorflow import silence_tensorflow
+
 from data.data_processing import HigherResPlateCarree
 from gan.metrics import WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes, LogSpectralDistance, \
-    SpatialKS, AngularCosineDistance
+    SpatialKS, AngularCosineDistance, cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray
 
 silence_tensorflow()
 
@@ -27,8 +24,16 @@ from gan.models import make_generator, make_discriminator, make_generator_no_noi
 
 TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
-DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
+DATA_ROOT = Path('/Volumes/Extreme SSD/data')  # Path(os.getenv('DATA_ROOT', './data'))
+CHECKPOINT_ROOT = Path('/Volumes/Extreme SSD/checkpoints')  # Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
+# variables used in the run
+TOPO_PREDICTORS = []  # ['tpi_500', 'slope', 'aspect']
+HOMEMADE_PREDICTORS = []
+ERA5_PREDICTORS_SURFACE = ['u10', 'v10']  # ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
+ERA5_PREDICTORS_Z500 = []  # ['z']
+# CRS used for plots
+crs_cosmo = epsg(21781)
 
 
 def get_network_from_config(len_inputs=2,
@@ -103,10 +108,6 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
                              nb_epochs=500,
                              gen_only=False
                              ):
-    TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
-    HOMEMADE_PREDICTORS = ['e_plus', 'e_minus', 'w_speed', 'w_angle']
-    ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
-    ERA5_PREDICTORS_Z500 = ['z']
     ALL_OUTPUTS = ['U_10M', 'V_10M']
     if batch_workers is None:
         batch_workers = os.cpu_count()
@@ -156,7 +157,7 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
     str_net = 'generator' if gen_only else 'gan'
     gen = network if gen_only else network.generator
     # Saving results
-    checkpoint_path_weights = Path(f'./checkpoints/{str_net}') / run_id / 'weights-{epoch:02d}.ckpt'
+    checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / 'weights-{epoch:02d}.ckpt'
 
     for epoch in np.arange(saving_frequency, nb_epochs, saving_frequency):
         network.load_weights(str(checkpoint_path_weights).format(epoch=epoch))
@@ -176,7 +177,7 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
 
 
 def get_predicted_map_Switzerland(network, input_image, input_vars, img_size, sequence_size, gen_only=False,
-                                  noise_channels=20, handle_borders='crop', average_preds=False):
+                                  noise_channels=20, handle_borders='overlap', overlapping_bonus=0):
     """
 
     :param network: the network model
@@ -186,6 +187,7 @@ def get_predicted_map_Switzerland(network, input_image, input_vars, img_size, se
     :param sequence_size: time steps as set up in model for training
     :param noise_channels: noise channels as set up in model for training
     :param handle_borders: either 'crop' or 'overlap'
+    :param overlapping_bonus: number of columns added to the integer part of the ratios pixel_lat/img_size and pixel_lon/img_size with the overlap option
     :return:
     """
     variables_of_interest = ['u10', 'v10']
@@ -201,7 +203,7 @@ def get_predicted_map_Switzerland(network, input_image, input_vars, img_size, se
                    for i in range(nrows)
                    for k in range(ntimeseq)}
     elif handle_borders == 'overlap':
-        nrows, ncols = np.math.ceil(pixels_lon / img_size), np.math.ceil(
+        nrows, ncols = overlapping_bonus + np.math.ceil(pixels_lon / img_size), overlapping_bonus + np.math.ceil(
             pixels_lat / img_size)  # ceil and not floor, we want to cover the whole map
         xdist, ydist = (pixels_lat - img_size) // (ncols - 1), (pixels_lon - img_size) // (nrows - 1)
         leftovers_x, leftovers_y = pixels_lat - ((ncols - 1) * xdist + img_size), pixels_lon - (
@@ -226,19 +228,8 @@ def get_predicted_map_Switzerland(network, input_image, input_vars, img_size, se
     tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
                                                                                          keepdims=True)
     gen = network if gen_only else network.generator
-    if average_preds:
-        pred = []
-        nb_sim = 50
-        for _ in range(nb_sim):
-            print(f'Computing prediction {_} over {nb_sim}')
-            predictions = gen.predict(tensors) if gen_only else gen.predict(
-                [tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
-            pred.append(predictions)
-        predictions = np.mean(np.stack(pred, axis=-1), axis=-1)
-        std_pred = np.std(np.stack(pred, axis=-1), axis=-1)
-    else:
-        predictions = gen.predict(tensors) if gen_only else gen.predict(
-            [tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
+    predictions = gen.predict(tensors) if gen_only else gen.predict(
+        [tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
     predicted_squares = {
         (i, j, k): xr.Dataset(
             {v: xr.DataArray(predictions[positions[(i, j, k)], ..., variables_of_interest.index(v)],
@@ -247,24 +238,14 @@ def get_predicted_map_Switzerland(network, input_image, input_vars, img_size, se
             coords=squares[(i, j, k)].coords)
         for (i, j, k) in squares
     }
-    predicted_data = xr.combine_by_coords(list(predicted_squares.values()))
-    if average_preds:
-        predicted_std_squares = {
-            (i, j, k): xr.Dataset(
-                {v: xr.DataArray(std_pred[positions[(i, j, k)], ..., variables_of_interest.index(v)],
-                                 coords=squares[(i, j, k)].coords, name=v) for v in
-                 variables_of_interest},
-                coords=squares[(i, j, k)].coords)
-            for (i, j, k) in squares
-        }
-        predicted_std = xr.combine_by_coords(list(predicted_std_squares.values()))
-    else:
-        predicted_std = None
-    return predicted_data, predicted_std
-
-
-def save_predicted_maps_Switzerland():
-    pass
+    if handle_borders == 'crop':
+        predicted_data = xr.combine_by_coords(list(predicted_squares.values()))
+    elif handle_borders == 'overlap':
+        predicted_squares = {v: predicted_squares[v].isel(x_1=slice(2, -2), y_1=slice(2, -2)) for v in predicted_squares}
+        bigdata = pd.concat([s.to_dataframe() for s in predicted_squares.values()])
+        unique = bigdata.groupby(level=['time', 'y_1', 'x_1']).mean()
+        predicted_data = xr.Dataset.from_dataframe(unique).set_coords(['lon_1', 'lat_1', 'y', 'x'])
+    return predicted_data
 
 
 def plot_predicted_maps_Swizterland(run_id, date, epoch, hour, variable_to_plot,
@@ -272,82 +253,89 @@ def plot_predicted_maps_Swizterland(run_id, date, epoch, hour, variable_to_plot,
                                     img_size=128,
                                     batch_size=16,
                                     noise_channels=20,
-                                    cosmoblurred=False,
+                                    cosmoblurred_sample=False,
+                                    cosmoblurred_run=False,
                                     data_provider: str = 'local',
                                     gen_only=False,
-                                    average_preds=False
+                                    handle_borders='overlap',
+                                    overlapping_bonus=0
                                     ):
-    TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
-    HOMEMADE_PREDICTORS = ['w_speed', 'w_angle']
-    ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
-    ERA5_PREDICTORS_Z500 = ['z']
     ALL_OUTPUTS = ['U_10M', 'V_10M']
-    ALL_INPUTS = []  # + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-    ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
-    input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred)
-    run_id = f'{run_id}_cosmo_blurred' if cosmoblurred else run_id
+    ALL_INPUTS = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
+    ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred_sample)
+    run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
     network = get_network_from_config(len_inputs=len(ALL_INPUTS), len_outputs=len(ALL_OUTPUTS),
                                       sequence_length=sequence_length, img_size=img_size, batch_size=batch_size,
                                       noise_channels=noise_channels,
                                       gen_only=gen_only)
     str_net = 'generator' if gen_only else 'gan'
     # Saving results
-    checkpoint_path_weights = Path(f'./checkpoints/{str_net}') / run_id / f'weights-{epoch}.ckpt'
+    checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch}.ckpt'
     network.load_weights(str(checkpoint_path_weights))
     range_long = (5.73, 10.67)
     range_lat = (45.69, 47.97)
     with input_provider.provide(date) as input_file, output_provider.provide(date) as output_file:
         input_image = xr.open_dataset(input_file)
-        df_in = input_image.to_dataframe()
-        df_in = df_in[
-            (df_in["lon_1"] <= range_long[1]) & (df_in["lon_1"] >= range_long[0]) & (df_in["lat_1"] <= range_lat[1]) & (
-                    df_in["lat_1"] >= range_lat[0])]
-        x_good = sorted(list(set(df_in.index.get_level_values("x_1"))))
-        y_good = sorted(list(set(df_in.index.get_level_values("y_1"))))
-        ds_in = input_image.sel(x_1=x_good, y_1=y_good)
         output_image = xr.open_dataset(output_file)
-        ds_out = output_image.sel(x_1=x_good, y_1=y_good)
-    predicted, std = get_predicted_map_Switzerland(network, ds_in, ALL_INPUTS, img_size=img_size,
-                                                   sequence_size=sequence_length, noise_channels=noise_channels,
-                                                   gen_only=gen_only, average_preds=average_preds)
+        if handle_borders == 'crop':
+            df_in = input_image.to_dataframe()
+            df_in = df_in[
+                (df_in["lon_1"] <= range_long[1]) & (df_in["lon_1"] >= range_long[0]) & (df_in["lat_1"] <= range_lat[1]) & (
+                        df_in["lat_1"] >= range_lat[0])]
+            x_good = sorted(list(set(df_in.index.get_level_values("x_1"))))
+            y_good = sorted(list(set(df_in.index.get_level_values("y_1"))))
+            ds_in = input_image.sel(x_1=x_good, y_1=y_good)
+            ds_out = output_image.sel(x_1=x_good, y_1=y_good)
+        else:
+            ds_in = input_image
+            ds_out = output_image
+    predicted = get_predicted_map_Switzerland(network, ds_in, ALL_INPUTS, img_size=img_size,
+                                              sequence_size=sequence_length, noise_channels=noise_channels,
+                                              gen_only=gen_only, handle_borders=handle_borders, overlapping_bonus=overlapping_bonus)
     range_long = (5.8, 10.6)
     range_lat = (45.75, 47.9)
-    fig = plt.figure(constrained_layout=False, figsize=(15, 5))
-    gs = gridspec.GridSpec(1, 3, figure=fig) if not average_preds else gridspec.GridSpec(1, 4, figure=fig)
+    fig = plt.figure(constrained_layout=False, figsize=(15, 10))
+    gs = gridspec.GridSpec(2, 3, figure=fig)
     ax1 = fig.add_subplot(gs[0, 0], projection=HigherResPlateCarree())
     ax2 = fig.add_subplot(gs[0, 1], projection=HigherResPlateCarree())
     ax3 = fig.add_subplot(gs[0, 2], projection=HigherResPlateCarree())
-    axes = [ax1, ax2, ax3]
+    ax4 = fig.add_subplot(gs[1, 0], projection=HigherResPlateCarree())
+    ax5 = fig.add_subplot(gs[1, 1], projection=HigherResPlateCarree())
+    ax6 = fig.add_subplot(gs[1, 2], projection=HigherResPlateCarree())
+    axes = [ax1, ax2, ax3, ax4, ax5, ax6]
     cosmo_var = 'U_10M' if variable_to_plot == 'u10' else 'V_10M'
     text = 'U-component' if variable_to_plot == 'u10' else 'V-component'
     cbar_kwargs = {"orientation": "horizontal", "shrink": 0.7,
                    "label": f"10-meter {text} (m.s-1)"}
-    inp = input_image.isel(time=hour).get(cosmo_var) if cosmoblurred else input_image.isel(time=hour).get(
+    inp = input_image.isel(time=hour).get(cosmo_var) if cosmoblurred_sample else input_image.isel(time=hour).get(
         variable_to_plot)
+    dem = input_image.elevation.isel(time=hour)
     cosmo = output_image.isel(time=hour).get(cosmo_var)
     pred = predicted.isel(time=hour).get(variable_to_plot)
-    std_var = std.isel(time=hour).get(variable_to_plot) if std is not None else None
     mini = np.nanmin(ds_out.isel(time=hour).get(cosmo_var).__array__())
     maxi = np.nanmax(ds_out.isel(time=hour).get(cosmo_var).__array__())
     vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
     inp.plot(cmap='jet', ax=ax1, transform=crs_cosmo, vmin=vmin, vmax=vmax,
              cbar_kwargs=cbar_kwargs)
-    cosmo.plot(cmap='jet', ax=ax2, transform=crs_cosmo, vmin=vmin, vmax=vmax,
+    dem.plot(cmap='jet', ax=ax2, transform=crs_cosmo,
+             cbar_kwargs={"orientation": "horizontal", "shrink": 0.7})
+    cosmo.plot(cmap='jet', ax=ax3, transform=crs_cosmo,
                cbar_kwargs=cbar_kwargs)
-    pred.plot(cmap='jet', ax=ax3, transform=crs_cosmo, vmin=vmin, vmax=vmax,
+    pred.plot(cmap='jet', ax=ax6, transform=crs_cosmo, vmin=vmin, vmax=vmax,
               cbar_kwargs=cbar_kwargs)
-    if average_preds:
-        ax4 = fig.add_subplot(gs[0, 3], projection=HigherResPlateCarree())
-        axes.append(ax4)
-        std_var.plot(cmap='OrRd', ax=ax4, transform=crs_cosmo,
-                     cbar_kwargs=cbar_kwargs)
-        ax4.set_title('Predicted std')
-        ax3.set_title('Predicted mean')
-    else:
-        ax3.set_title('Predicted')
-    title_inp = 'COSMO1 blurred data' if cosmoblurred else 'ERA5 reanalysis data'
+    title_inp = 'COSMO1 blurred data' if cosmoblurred_sample else 'ERA5 reanalysis data'
     ax1.set_title(title_inp)
-    ax2.set_title('COSMO-1 data')
+    ax2.set_title('DEM')
+    ax3.set_title('COSMO-1 data')
+    ax6.set_title('Predicted')
+    for metric, ax, name, cmap in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax4, ax5], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
+                                      ['brg', 'Reds']):
+        real_output = output_image[['U_10M', 'V_10M']].sel(x_1=np.unique(predicted.x_1[:]), y_1=np.unique(predicted.y_1[:]))
+        fake_output = predicted[['u10', 'v10']]
+        dist = metric(real_output, fake_output)
+        dist.mean(dim='time').plot(cmap=cmap, ax=ax, transform=crs_cosmo, vmin=vmin, vmax=1., cbar_kwargs={"orientation": "horizontal", "shrink": 0.7})
+        ax.set_title(name)
     for ax in axes:
         ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
         ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
@@ -366,14 +354,10 @@ def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
                             nb_epochs=500,
                             gen_only=False
                             ):
-    TOPO_PREDICTORS = ['tpi_500', 'slope', 'aspect']
-    HOMEMADE_PREDICTORS = ['w_speed', 'w_angle']
-    ERA5_PREDICTORS_SURFACE = ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
-    ERA5_PREDICTORS_Z500 = ['z']
     ALL_OUTPUTS = ['U_10M', 'V_10M']
     if batch_workers is None:
         batch_workers = os.cpu_count()
-    ALL_INPUTS = [] + TOPO_PREDICTORS + HOMEMADE_PREDICTORS
+    ALL_INPUTS = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
     ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
     input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred)
     run_id = f'{run_id}_cosmo_blurred' if cosmoblurred else run_id
@@ -408,7 +392,7 @@ def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
     str_net = 'generator' if gen_only else 'gan'
     gen = network if gen_only else network.generator
     # Saving results
-    checkpoint_path_weights = Path(f'./checkpoints/{str_net}') / run_id / 'weights-{epoch:02d}.ckpt'
+    checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / 'weights-{epoch:02d}.ckpt'
     metrics_data = []
     for epoch in np.arange(saving_frequency, nb_epochs, saving_frequency):
         print(f'Loading weights for epoch {epoch}')

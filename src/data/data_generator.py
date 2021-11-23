@@ -207,10 +207,8 @@ class _BatchGenerator(object):
                 x_coord: slice(random_x_coord, random_x_coord + self.patch_length_pixel),
                 y_coord: slice(random_y_coord, random_y_coord + self.patch_length_pixel)
             })[variables_and_coords]
-            if 'tpi_500' in variables_and_coords:
-                patch["tpi_500"] = patch["tpi_500"] / 100
-            elif 'aspect' in variables_and_coords:
-                patch['aspect'] = patch["aspect"] / 100
+            if 'elevation' in variables_and_coords:
+                patch["elevation"] = patch["elevation"] / 1e3
             to_stack = []
             for v in variables:
                 to_stack.append(patch[v].to_numpy())

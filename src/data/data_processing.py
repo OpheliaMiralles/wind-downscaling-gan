@@ -494,8 +494,11 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
                  start_date, end_date,
                  surface_variables_included=('u10', 'v10', 'blh', 'fsr', 'sp'),
                  z500_variables_included=('z', 'vo', 'd'),
-                 topo_variables_included=('tpi_500', 'ridge_index_norm'),
-                 cosmo_variables_included=('U_10M', 'V_10M')):
+                 topo_variables_included=('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+                                          'we_derivative', 'sn_derivative',
+                                          'slope', 'aspect'),
+                 cosmo_variables_included=('U_10M', 'V_10M'),
+                 homemade_variables_included=('e_plus', 'e_minus', 'w_speed', 'w_angle')):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
     print(f'Reading DEM data files')
@@ -546,10 +549,13 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 
             print(f'Merging input data into a dataset...')
             full_data = xr.merge([inputs_surface, inputs_z500, static_inputs])
-            e_plus, e_minus = compute_time_varying_topo_pred(full_data.u10, full_data.v10,
-                                                             full_data.slope, full_data.aspect)
-            w_speed, w_angle = compute_wind_speed_and_angle(full_data.u10, full_data.v10)
-            full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus, 'w_speed': w_speed, 'w_angle': w_angle})
+            if 'e_plus' in homemade_variables_included:
+                e_plus, e_minus = compute_time_varying_topo_pred(full_data.u10, full_data.v10,
+                                                                 full_data.slope, full_data.aspect)
+                full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus})
+            if 'w_speed' in homemade_variables_included:
+                w_speed, w_angle = compute_wind_speed_and_angle(full_data.u10, full_data.v10)
+                full_data = full_data.assign({'w_speed': w_speed, 'w_angle': w_angle})
             full_data.to_netcdf(x_path)
             if not os.path.isfile(y_path):
                 outputs.to_netcdf(y_path)
@@ -557,7 +563,9 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 
 def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path: str, DEM_data_path: str,
                                  start_date, end_date,
-                                 topo_variables_included=('tpi_500', 'ridge_index_norm'),
+                                 topo_variables_included=('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+                                                          'we_derivative', 'sn_derivative',
+                                                          'slope', 'aspect'),
                                  cosmo_variables_included=('U_10M', 'V_10M'), blurring=4):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)

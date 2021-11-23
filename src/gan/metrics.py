@@ -38,6 +38,21 @@ def wind_speed_weighted_rmse(real_output, fake_output):
     return ws_weighted_rmse
 
 
+def tanh_wind_speed_weighted_rmse_from_xarray(real_output, fake_output):
+    import xarray as xr
+    u, v = real_output.U_10M, real_output.V_10M
+    u_hat, v_hat = fake_output.u10, fake_output.v10
+    estimated_wind_speed = np.sqrt(u_hat ** 2 + v_hat ** 2)
+    realized_wind_speed = np.sqrt(u ** 2 + v ** 2)
+    epsilon = 4  # See Jerome Dujardin thesis
+    t = 0.425  # See Jerome Dujardin thesis
+    beta = (epsilon + realized_wind_speed) / (epsilon + estimated_wind_speed)
+    tau = xr.where(estimated_wind_speed >= realized_wind_speed, t, 1 - t)
+    ws_weighted_rmse = tau * ((u_hat - beta * u) ** 2 + (v_hat - beta * v) ** 2)
+    m = (np.mean(ws_weighted_rmse) + np.quantile(ws_weighted_rmse, 0.5)) / 2
+    return np.tanh(ws_weighted_rmse / m)
+
+
 WindSpeedWeightedRMSE = lambda: tfa.metrics.MeanMetricWrapper(wind_speed_weighted_rmse, name='ws_weighted_rmse')
 
 
@@ -78,6 +93,14 @@ def angular_cosine_distance(real_output, fake_output):
     angle = tf.where(tf.math.is_nan(angle), tf.zeros_like(angle), angle)
     angle = tf.reduce_mean(angle, axis=(1, 2, 3))
     return angle
+
+
+def cosine_similarity_from_xarray(real_output, fake_output):
+    scalar_prod = real_output.U_10M * fake_output.u10 + real_output.V_10M * fake_output.v10
+    norm_real = np.sqrt(real_output.U_10M ** 2 + real_output.V_10M ** 2)
+    norm_fake = np.sqrt(fake_output.u10 ** 2 + fake_output.v10 ** 2)
+    cosine_sim = scalar_prod / (norm_real * norm_fake)
+    return cosine_sim
 
 
 AngularCosineDistance = lambda: tfa.metrics.MeanMetricWrapper(angular_cosine_distance, name='acd')
