@@ -13,6 +13,7 @@ checkpoints
 # Data files and such
 ./data
 data
+upload_data.py
 tex
 plots
 docs
@@ -24,3 +25,5 @@ models
 *.gif
 *.tif
 *.RData
+# Probabilistic downscaling files
+src/bayes
