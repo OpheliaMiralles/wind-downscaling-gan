@@ -25,14 +25,14 @@ from gan.models import make_generator, make_discriminator, make_generator_no_noi
 
 TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
-DATA_ROOT = Path('/Volumes/Extreme SSD/data')  # Path(os.getenv('DATA_ROOT', './data'))
-CHECKPOINT_ROOT = Path('/Volumes/Extreme SSD/checkpoints')  # Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
+DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
+CHECKPOINT_ROOT = Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 # variables used in the run
-TOPO_PREDICTORS = []  # ['tpi_500', 'slope', 'aspect']
+TOPO_PREDICTORS = ['elevation']
 HOMEMADE_PREDICTORS = []
-ERA5_PREDICTORS_SURFACE = ['u10', 'v10']  # ['u10', 'v10', 'blh', 'fsr', 'sp', 'sshf']
-ERA5_PREDICTORS_Z500 = []  # ['z']
+ERA5_PREDICTORS_SURFACE = ['u10', 'v10']
+ERA5_PREDICTORS_Z500 = []
 # CRS used for plots
 crs_cosmo = epsg(21781)
 
