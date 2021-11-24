@@ -196,9 +196,9 @@ class _BatchGenerator(object):
 
     def get_random_square_sequences_per_day(self, X, Y):
         x_coord, y_coord = 'x_1', 'y_1'
-        random_x_coord = np.random.randint(0, X.dims[x_coord] - 1 - self.patch_length_pixel)
-        random_y_coord = np.random.randint(0, X.dims[y_coord] - 1 - self.patch_length_pixel)
-        random_time = np.random.randint(0, X.dims['time'] - 1 - self.sequence_length)
+        random_x_coord = np.random.randint(0, X.dims[x_coord] + 1 - self.patch_length_pixel)
+        random_y_coord = np.random.randint(0, X.dims[y_coord] + 1 - self.patch_length_pixel)
+        random_time = np.random.randint(0, X.dims['time'] + 1 - self.sequence_length)
 
         def crop_to_array(x, variables):
             variables_and_coords = ['time', x_coord, y_coord] + variables
