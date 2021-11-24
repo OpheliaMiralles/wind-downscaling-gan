@@ -251,7 +251,7 @@ def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
     from cartopy.crs import epsg
     crs_cosmo = epsg(21781)
     # Downloading saved inputs
-    d_str = d.strftime('%Y%m%d')
+    d_str = date.strftime('%Y%m%d')
     print(d_str)
     cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'y_{d_str}.nc')).sel(time=d_str).isel(time=0)[
         'U_10M']
