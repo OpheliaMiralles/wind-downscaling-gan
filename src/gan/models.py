@@ -7,67 +7,30 @@ from tensorflow.python.keras.layers import LeakyReLU
 from tensorflow_addons.layers import SpectralNormalization
 
 
-def make_generator_no_noise(
-        image_size: int,
-        in_channels: int,
-        out_channels: int,
-        n_timesteps: int,
-        batch_size: int = None,
-        feature_channels=128
-):
-    # Make sure we have nice powers of 2 everywhere
-    assert log2(image_size).is_integer()
-    assert log2(feature_channels).is_integer()
-    total_in_channels = in_channels
-    img_shape = (image_size, image_size)
-    tshape = (n_timesteps,) + img_shape
-    input_image = kl.Input(shape=tshape + (in_channels,), batch_size=batch_size, name='input_image')
-    x = input_image
+def img_size(z):
+    return z.shape[2]
 
-    # Add features and decrease image size - in 2 steps
-    intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=3))(x)
-    x = kl.TimeDistributed(kl.Conv2D(intermediate_features, (8, 8), strides=2, activation=LeakyReLU(0.2)))(x)
-    x = kl.BatchNormalization()(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, intermediate_features)
-    res_2 = x  # Keep residuals for later
 
-    x = kl.TimeDistributed(kl.ZeroPadding2D(padding=1))(x)
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels, (4, 4), strides=2, activation=LeakyReLU(0.2)))(x)
-    x = kl.BatchNormalization()(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
-    res_4 = x  # Keep residuals for later
+def channels(z):
+    return z.shape[-1]
 
-    # Recurrent unit
-    x = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
 
-    # Re-increase image size and decrease features
-    x = kl.TimeDistributed(kl.Conv2D(feature_channels // 2, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
-    x = kl.BatchNormalization()(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels // 2)
-
-    # Re-introduce residuals from before (skip connection)
-    x = kl.Concatenate()([x, res_4])
-    x = kl.TimeDistributed(kl.Conv2DTranspose(feature_channels / 4, (2, 2), strides=2, activation=LeakyReLU(0.2)))(x)
-    x = kl.BatchNormalization()(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 2, image_size // 2, feature_channels // 4)
-
-    # Skip connection 2
-    x = kl.Concatenate()([x, res_2])
-    if feature_channels / 8 >= out_channels:
-        x = kl.TimeDistributed(kl.UpSampling2D(size=(2, 2), interpolation='bilinear'))(x)
-        x = kl.TimeDistributed(
-            kl.Conv2DTranspose(feature_channels // 8, (5, 5), padding='same', activation=LeakyReLU(0.2)))(x)
-        assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, feature_channels // 8)
+def shortcut_convolution(high_res_img, low_res_target, nb_channels_out):
+    if img_size(low_res_target) == 1:
+        kernel_size = img_size(high_res_img)
+        downsampled_input = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(nb_channels_out, kernel_size,
+                                            activation=LeakyReLU(0.2))), name='shortcut_conv_1')(high_res_img)
     else:
-        x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation=LeakyReLU(0.2)))(x)
-        assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
-    x = kl.BatchNormalization()(x)
-    x = kl.TimeDistributed(kl.Conv2D(out_channels, (3, 3), padding='same', activation='linear'),
-                           name='predicted_image')(x)
-    assert tuple(x.shape) == (batch_size, n_timesteps, image_size, image_size, out_channels)
-    return Model(inputs=input_image, outputs=x, name='generator')
+        strides = int(tf.math.ceil((2 + img_size(high_res_img)) / (img_size(low_res_target) - 1)))
+        margin = 2
+        padding = int(tf.math.ceil((strides * (img_size(low_res_target) - 1) - img_size(high_res_img)) / 2) + 1 + margin)
+        kernel_size = int(strides * (1 - img_size(low_res_target)) + img_size(high_res_img) + 2 * padding)
+        downsampled_input = kl.TimeDistributed(kl.ZeroPadding2D(padding=padding))(high_res_img)
+        downsampled_input = kl.TimeDistributed(
+            SpectralNormalization(kl.Conv2D(nb_channels_out, kernel_size, strides=strides,
+                                            activation=LeakyReLU(0.2))), name='shortcut_conv')(downsampled_input)
+    return downsampled_input
 
 
 def make_generator(
@@ -89,7 +52,10 @@ def make_generator(
     input_noise = kl.Input(shape=tshape + (noise_channels,), batch_size=batch_size, name='input_noise')
 
     # Concatenate inputs
-    x = kl.Concatenate()([input_image, input_noise])
+    input_winds = input_image[..., :2]
+    input_topo = input_image[..., 2:]
+    wind_topo_ratio = 16
+    x = kl.Concatenate()([input_winds, input_noise])
 
     # Add features and decrease image size - in 2 steps
     intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
@@ -106,6 +72,8 @@ def make_generator(
     res_4 = x  # Keep residuals for later
 
     # Recurrent unit
+    input_topo_lowres = shortcut_convolution(input_topo, x, channels(x) // wind_topo_ratio)
+    x = kl.Concatenate()([x, input_topo_lowres])
     x = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
 
@@ -173,12 +141,6 @@ def make_discriminator(
     x = kl.Concatenate()([hr, mix])
     assert tuple(x.shape) == (batch_size, n_timesteps, low_res_size, low_res_size, 2 * feature_channels)
 
-    def img_size(z):
-        return z.shape[2]
-
-    def channels(z):
-        return z.shape[-1]
-
     while img_size(x) >= 16:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
         x = kl.TimeDistributed(
@@ -190,20 +152,7 @@ def make_discriminator(
         x = kl.TimeDistributed(
             SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3,
                                             activation=LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
-    if img_size(x) == 1:
-        kernel_size = img_size(shortcut)
-        shortcut = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x), kernel_size,
-                                            activation=LeakyReLU(0.2))), name='shortcut_conv_1')(shortcut)
-    else:
-        strides = int(tf.math.ceil((2 + img_size(shortcut)) / (img_size(x) - 1)))
-        margin = 2
-        padding = int(tf.math.ceil((strides * (img_size(x) - 1) - img_size(shortcut)) / 2) + 1 + margin)
-        kernel_size = int(strides * (1 - img_size(x)) + img_size(shortcut) + 2 * padding)
-        shortcut = kl.TimeDistributed(kl.ZeroPadding2D(padding=padding))(shortcut)
-        shortcut = kl.TimeDistributed(
-            SpectralNormalization(kl.Conv2D(channels(x), kernel_size, strides=strides,
-                                            activation=LeakyReLU(0.2))), name='shortcut_conv')(shortcut)
+    shortcut = shortcut_convolution(shortcut, x, channels(x))
     # Split connection
     x = kl.add([x, shortcut])
 

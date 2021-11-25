@@ -19,9 +19,9 @@ DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
-def train_with_all_data(sequence_length=6,
+def train_with_all_data(sequence_length=24,
                         img_size=128,
-                        batch_size=16,
+                        batch_size=8,
                         noise_channels=20,
                         cosmoblurred=False,
                         run_id=datetime.today().strftime('%Y%m%d_%H%M'),
