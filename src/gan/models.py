@@ -52,10 +52,7 @@ def make_generator(
     input_noise = kl.Input(shape=tshape + (noise_channels,), batch_size=batch_size, name='input_noise')
 
     # Concatenate inputs
-    input_winds = input_image[..., :2]
-    input_topo = input_image[..., 2:]
-    wind_topo_ratio = 16
-    x = kl.Concatenate()([input_winds, input_noise])
+    x = kl.Concatenate()([input_image, input_noise])
 
     # Add features and decrease image size - in 2 steps
     intermediate_features = total_in_channels * 8 if total_in_channels * 8 <= feature_channels else feature_channels
@@ -72,8 +69,6 @@ def make_generator(
     res_4 = x  # Keep residuals for later
 
     # Recurrent unit
-    input_topo_lowres = shortcut_convolution(input_topo, x, channels(x) // wind_topo_ratio)
-    x = kl.Concatenate()([x, input_topo_lowres])
     x = kl.ConvLSTM2D(feature_channels, (3, 3), padding='same', return_sequences=True)(x)
     assert tuple(x.shape) == (batch_size, n_timesteps, image_size // 4, image_size // 4, feature_channels)
 

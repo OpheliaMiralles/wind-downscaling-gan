@@ -27,9 +27,9 @@ TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
 DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 CHECKPOINT_ROOT = Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
-PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files_all_covariates'
+PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 # variables used in the run
-TOPO_PREDICTORS = []
+TOPO_PREDICTORS = ['elevation']
 HOMEMADE_PREDICTORS = []
 ERA5_PREDICTORS_SURFACE = ['u10', 'v10']
 ERA5_PREDICTORS_Z500 = []
@@ -183,9 +183,11 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
                     df_in["lat_1"] >= range_lat[0])]
         x_good = sorted(list(set(df_in.index.get_level_values("x_1"))))
         y_good = sorted(list(set(df_in.index.get_level_values("y_1"))))
-        ds_in = input_image.sel(x_1=x_good, y_1=y_good)
+        ds_in = input_image.sel(x_1=x_good, y_1=y_good).copy()
     else:
-        ds_in = input_image
+        ds_in = input_image.copy()
+    if 'elevation' in input_vars:
+        ds_in['elevation'] = ds_in['elevation'] / 1e3
     variables_of_interest = ['u10', 'v10']
     pixels_lat, pixels_lon, time_window = ds_in.dims['x_1'], ds_in.dims['y_1'], ds_in.dims['time']
     ntimeseq = time_window // sequence_length
@@ -209,10 +211,10 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
             [[0], np.ones(leftovers_y), np.zeros(nrows - leftovers_y - 1)]).cumsum()
         slices_start_x, slices_start_y = [int(i * xdist + x) for (i, x) in zip(range(ncols), x_vec_leftovers)], [
             int(j * ydist + y) for (j, y) in zip(range(nrows), y_vec_leftovers)]
-        squares = {(sx, sy, k): input_image.isel(time=slice(k * sequence_length, (k + 1) * sequence_length),
-                                                 x_1=slice(sx, sx + 128),
-                                                 y_1=slice(sy + 127, sy - 1, -1) if sy != 0 else slice(128, 0, -1)
-                                                 )[input_vars]
+        squares = {(sx, sy, k): ds_in.isel(time=slice(k * sequence_length, (k + 1) * sequence_length),
+                                           x_1=slice(sx, sx + img_size),
+                                           y_1=slice(sy + img_size - 1, sy - 1, -1) if sy != 0 else slice(img_size, 0, -1)
+                                           )[input_vars]
                    for sx in slices_start_x
                    for sy in slices_start_y
                    for k in range(ntimeseq)}
@@ -221,8 +223,6 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
     positions = {(i, j, k): index for index, (i, j, k) in enumerate(squares)}
     tensors = np.stack([im.to_array().to_numpy() for k, im in squares.items()], axis=0)
     tensors = np.transpose(tensors, [0, 2, 3, 4, 1])
-    tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
-                                                                                         keepdims=True)
     gen = network.generator
     predictions = gen.predict([tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
     predicted_squares = {
