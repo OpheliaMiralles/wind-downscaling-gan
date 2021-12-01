@@ -1,5 +1,3 @@
-from math import log2
-
 import tensorflow as tf
 import tensorflow.keras.layers as kl
 from tensorflow.keras.models import Model
@@ -42,9 +40,9 @@ def make_generator(
         batch_size: int = None,
         feature_channels=128
 ):
-    # Make sure we have nice powers of 2 everywhere
-    assert log2(image_size).is_integer()
-    assert log2(feature_channels).is_integer()
+    # Make sure we have nice multiples everywhere
+    assert image_size % 4 == 0
+    assert feature_channels % 8 == 0
     total_in_channels = in_channels + noise_channels
     img_shape = (image_size, image_size)
     tshape = (n_timesteps,) + img_shape
@@ -109,9 +107,6 @@ def make_discriminator(
         batch_size: int = None,
         feature_channels: int = 16
 ):
-    assert log2(low_res_size).is_integer()
-    assert log2(high_res_size).is_integer()
-
     low_res = kl.Input(shape=(n_timesteps, low_res_size, low_res_size, low_res_channels), batch_size=batch_size,
                        name='low_resolution_image')
     high_res = kl.Input(shape=(n_timesteps, high_res_size, high_res_size, high_res_channels), batch_size=batch_size,
