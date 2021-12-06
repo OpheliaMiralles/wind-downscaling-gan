@@ -6,14 +6,12 @@ from tensorflow.keras import Model
 
 
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3,
-                 generator_additional_losses=None, *args,
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3, *args,
                  **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
         self.generator = generator
         self.discriminator = discriminator
         self.noise_generator = noise_generator
-        self._generator_additional_losses = generator_additional_losses
         self._steps_per_execution = tf.convert_to_tensor(1)
         self._n_critic = n_critic
 
@@ -34,9 +32,9 @@ class GAN(Model):
             with tf.GradientTape() as reg_tape:
                 reg_tape.watch(combined_high_res)
                 out = self.discriminator([low_res, combined_high_res], training=False)
-            gradients = reg_tape.gradient(out, combined_high_res)
-            gradients = tf.sqrt(tf.reduce_sum(gradients ** 2, axis=[1, 2, 3]))
-            gradient_reg = gamma * tf.reduce_mean((gradients - 1) ** 2)
+            gradients_image = reg_tape.gradient(out, combined_high_res)
+            gradients_image = tf.sqrt(tf.reduce_sum(gradients_image ** 2, axis=[1, 2, 3]))
+            gradient_reg = gamma * tf.reduce_mean((gradients_image - 1) ** 2)
             # Run forward pass on the discriminator
             with tf.GradientTape() as disc_tape:
                 hr = high_res + self.noise_generator(batch_size, channels=fake_high_res.shape[-1])
@@ -45,8 +43,9 @@ class GAN(Model):
                 fake_high_res_score = self.discriminator([low_res, fhr], training=True)
                 disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
                                                              regularization_losses=[gradient_reg])
-            grads = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
-            self.discriminator.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
+            raw_grads_parameters = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
+            grads_parameters = [tf.clip_by_value(tf.cast(g, tf.float32), -10, 10) for g in raw_grads_parameters]
+            self.discriminator.optimizer.apply_gradients(zip(grads_parameters, self.discriminator.trainable_weights))
 
         # Run forward pass on the generator
         with tf.GradientTape() as gen_tape:
@@ -54,12 +53,7 @@ class GAN(Model):
             fake_high_res = self.generator([low_res, noise], training=True)
             fake_high_res_score = self.discriminator([low_res, fake_high_res], training=False)
             gen_disc_loss = -tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
-            if self._generator_additional_losses is not None:
-                gen_additional_losses = tf.reduce_mean(
-                    [loss(high_res, fake_high_res) for loss in self._generator_additional_losses])
-                gen_loss = (gen_disc_loss + gen_additional_losses) / 2
-            else:
-                gen_loss = gen_disc_loss
+            gen_loss = gen_disc_loss
         grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
         self.generator.optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
 
@@ -71,7 +65,7 @@ class GAN(Model):
         # Collect metrics to return
         return_metrics = {'d_loss': disc_loss_unregularized,
                           'g_loss': gen_loss,
-                          'd_gradient_pen': tf.reduce_mean(gradients)}
+                          'd_gradient_pen': tf.reduce_mean(gradients_image)}
         for metric in self.metrics:
             result = metric.result()
             if isinstance(result, dict):

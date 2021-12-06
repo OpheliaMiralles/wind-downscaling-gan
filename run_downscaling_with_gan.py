@@ -19,9 +19,9 @@ DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 
 
-def train_with_all_data(sequence_length=24,
+def train_with_all_data(sequence_length=3,
                         img_size=128,
-                        batch_size=8,
+                        batch_size=16,
                         noise_channels=20,
                         cosmoblurred=False,
                         run_id=datetime.today().strftime('%Y%m%d_%H%M'),
@@ -29,9 +29,10 @@ def train_with_all_data(sequence_length=24,
                         nb_epochs=500,
                         batch_workers=None,
                         data_provider: str = 'local',
-                        eager_batches=False):
+                        eager_batches=False,
+                        preload_weights_path=None):
     print(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
-    TOPO_PREDICTORS = ['elevation']
+    TOPO_PREDICTORS = []
     HOMEMADE_PREDICTORS = []
     ERA5_PREDICTORS_SURFACE = ['u10', 'v10']  # , 'blh', 'fsr', 'sp', 'sshf']
     ERA5_PREDICTORS_Z500 = []  # ['z']
@@ -71,7 +72,7 @@ def train_with_all_data(sequence_length=24,
     if eager_batches:
         inputs = []
         outputs = []
-        NUM_DAYS = min(500, len(AVAIL_DATES))
+        NUM_DAYS = min(2, len(AVAIL_DATES))
         with batch_gen_training as batch:
             for b in range(NUM_DAYS):
                 print(f'Creating batch {b + 1}/{NUM_DAYS}')
@@ -94,14 +95,22 @@ def train_with_all_data(sequence_length=24,
     noise_shape = (batch_size, sequence_length, img_size, img_size, noise_channels)
     gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=0.01))
     print(f"Total: {gan.generator.count_params() + gan.discriminator.count_params():,} weights")
-    gan.compile(generator_optimizer=train.generator_optimizer(),
-                generator_metrics=[metrics.AngularCosineDistance(),
-                                   metrics.LogSpectralDistance(),
-                                   metrics.WeightedRMSEForExtremes(),
-                                   metrics.WindSpeedWeightedRMSE()],
-                discriminator_optimizer=train.discriminator_optimizer(),
-                discriminator_loss=train.discriminator_loss,
-                metrics=[metrics.discriminator_score_fake(), metrics.discriminator_score_real()])
+
+    def compile(g):
+        g.compile(generator_optimizer=train.generator_optimizer(),
+                  generator_metrics=[metrics.AngularCosineDistance(),
+                                     metrics.LogSpectralDistance(),
+                                     metrics.WeightedRMSEForExtremes(),
+                                     metrics.WindSpeedWeightedRMSE()],
+                  discriminator_optimizer=train.discriminator_optimizer(),
+                  discriminator_loss=train.discriminator_loss,
+                  metrics=[metrics.discriminator_score_fake(), metrics.discriminator_score_real()])
+        return g
+
+    compile(gan)
+    if preload_weights_path:
+        gan.load_weights(preload_weights_path)
+        compile(gan)
     # Saving results
     checkpoint_path_weights = Path(
         './checkpoints/gan') / run_id / 'weights-{epoch:02d}.ckpt'
@@ -120,4 +129,5 @@ def train_with_all_data(sequence_length=24,
 
 
 if __name__ == '__main__':
-    train_with_all_data(cosmoblurred=False, data_provider='local', eager_batches=True)
+    train_with_all_data(img_size=128, sequence_length=6, batch_size=16,
+                        cosmoblurred=True, data_provider='local', eager_batches=True, preload_weights_path='./checkpoints/gan/20211102_1113_cosmo_blurred/weights-270.ckpt')

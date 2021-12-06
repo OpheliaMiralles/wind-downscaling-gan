@@ -528,8 +528,6 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
                                   v not in cosmo_variables_included + tuple(cosmo._coord_names)]
             outputs = cosmo.drop_vars(cosmo_vars_to_drop)
             print('Adjusting resolution to COSMO1 image size')
-            temp_inputs_topo = inputs_topo \
-                .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest').drop_vars(topo_vars_to_drop)
             print(f'Reading and Interpolating linearly ERA5 data to fit the topographic data resolution')
             inputs_surface = xr.open_mfdataset(pathlib.Path(ERA5_data_path).glob(f'{d_str}*surface*.nc')).sel(
                 time=d_str).sel(longitude=cosmo.lon_1, latitude=cosmo.lat_1, method='nearest')
@@ -545,8 +543,9 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             time_steps = inputs_surface.time.shape
             print(
                 f'Replicating {time_steps[0]} times the static topographic inputs to respect the time series data format for inputs')
+            temp_inputs_topo = inputs_topo \
+                .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest')
             static_inputs = temp_inputs_topo.expand_dims({'time': inputs_surface.time})
-
             print(f'Merging input data into a dataset...')
             full_data = xr.merge([inputs_surface, inputs_z500, static_inputs])
             if 'e_plus' in homemade_variables_included:
@@ -556,6 +555,7 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
             if 'w_speed' in homemade_variables_included:
                 w_speed, w_angle = compute_wind_speed_and_angle(full_data.u10, full_data.v10)
                 full_data = full_data.assign({'w_speed': w_speed, 'w_angle': w_angle})
+            full_data = full_data.drop_vars(topo_vars_to_drop)
             full_data.to_netcdf(x_path)
             if not os.path.isfile(y_path):
                 outputs.to_netcdf(y_path)
@@ -566,7 +566,9 @@ def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path:
                                  topo_variables_included=('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
                                                           'we_derivative', 'sn_derivative',
                                                           'slope', 'aspect'),
-                                 cosmo_variables_included=('U_10M', 'V_10M'), blurring=4):
+                                 cosmo_variables_included=('U_10M', 'V_10M'),
+                                 homemade_variables_included=('e_plus', 'e_minus', 'w_speed', 'w_angle'),
+                                 blurring=7):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
     print(f'Reading DEM data files')
@@ -599,7 +601,7 @@ def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path:
             cosmo_inputs = cosmo_inputs.map(gaussian_filter, sigma=blurring)
             print('Adjusting resolution of topographic descriptors to COSMO1 image size')
             temp_inputs_topo = inputs_topo \
-                .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest').drop_vars(topo_vars_to_drop)
+                .sel(x=cosmo.lon_1, y=cosmo.lat_1, method='nearest')
             time_steps = cosmo.time.shape
             print(
                 f'Replicating {time_steps[0]} times the static topographic inputs to respect the time series data format for inputs')
@@ -607,10 +609,14 @@ def process_imgs_cosmo_exclusive(path_to_processed_files: str, COSMO1_data_path:
 
             print(f'Merging input data into a dataset...')
             full_data = xr.merge([cosmo_inputs, static_inputs])
-            e_plus, e_minus = compute_time_varying_topo_pred(full_data.U_10M, full_data.V_10M,
-                                                             full_data.slope, full_data.aspect)
-            w_speed, w_angle = compute_wind_speed_and_angle(full_data.U_10M, full_data.V_10M)
-            full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus, 'w_speed': w_speed, 'w_angle': w_angle})
+            if 'e_plus' in homemade_variables_included:
+                e_plus, e_minus = compute_time_varying_topo_pred(full_data.U_10M, full_data.V_10M,
+                                                                 full_data.slope, full_data.aspect)
+                full_data = full_data.assign({'e_plus': e_plus, 'e_minus': e_minus})
+            if 'w_speed' in homemade_variables_included:
+                w_speed, w_angle = compute_wind_speed_and_angle(full_data.U_10M, full_data.V_10M)
+                full_data = full_data.assign({'w_speed': w_speed, 'w_angle': w_angle})
+            full_data = full_data.drop_vars(topo_vars_to_drop)
             full_data.to_netcdf(x_path)
             if not os.path.isfile(y_path):
                 cosmo_outputs.to_netcdf(y_path)

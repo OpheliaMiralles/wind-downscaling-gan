@@ -25,11 +25,11 @@ from gan.models import make_generator, make_discriminator
 
 TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
-DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
+DATA_ROOT = Path("/Volumes/Extreme SSD/data/")  # Path(os.getenv('DATA_ROOT', './data'))
 CHECKPOINT_ROOT = Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 # variables used in the run
-TOPO_PREDICTORS = ['elevation']
+TOPO_PREDICTORS = []
 HOMEMADE_PREDICTORS = []
 ERA5_PREDICTORS_SURFACE = ['u10', 'v10']
 ERA5_PREDICTORS_Z500 = []
@@ -223,6 +223,8 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
     positions = {(i, j, k): index for index, (i, j, k) in enumerate(squares)}
     tensors = np.stack([im.to_array().to_numpy() for k, im in squares.items()], axis=0)
     tensors = np.transpose(tensors, [0, 2, 3, 4, 1])
+    tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
+                                                                                         keepdims=True)
     gen = network.generator
     predictions = gen.predict([tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
     predicted_squares = {
@@ -264,7 +266,7 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour, variable_to_plot,
                                       noise_channels=noise_channels)
     str_net = 'gan'
     # Saving results
-    checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch}.ckpt'
+    checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch:02d}.ckpt'
     network.load_weights(str(checkpoint_path_weights))
     with input_provider.provide(date) as input_file, output_provider.provide(date) as output_file:
         input_image = xr.open_dataset(input_file)
