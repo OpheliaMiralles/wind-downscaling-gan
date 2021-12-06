@@ -72,7 +72,7 @@ def train_with_all_data(sequence_length=3,
     if eager_batches:
         inputs = []
         outputs = []
-        NUM_DAYS = min(2, len(AVAIL_DATES))
+        NUM_DAYS = min(500, len(AVAIL_DATES))
         with batch_gen_training as batch:
             for b in range(NUM_DAYS):
                 print(f'Creating batch {b + 1}/{NUM_DAYS}')
@@ -109,6 +109,7 @@ def train_with_all_data(sequence_length=3,
 
     compile(gan)
     if preload_weights_path:
+        print('Loading weights from previous run')
         gan.load_weights(preload_weights_path)
         compile(gan)
     # Saving results

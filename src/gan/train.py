@@ -38,4 +38,4 @@ class discriminator_score_fake(tf.keras.metrics.Mean):
 
 
 def discriminator_optimizer():
-    return tf.keras.optimizers.Adam(lr=4e-4, beta_1=0, beta_2=0.9, epsilon=0.1)
+    return tf.keras.optimizers.Adam(lr=1e-4, beta_1=0, beta_2=0.9, epsilon=0.1)
