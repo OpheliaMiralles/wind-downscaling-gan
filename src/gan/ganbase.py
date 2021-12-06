@@ -44,7 +44,7 @@ class GAN(Model):
                 disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight,
                                                              regularization_losses=[gradient_reg])
             raw_grads_parameters = disc_tape.gradient(disc_loss, self.discriminator.trainable_weights)
-            grads_parameters = [tf.clip_by_value(g, -1, 1) for g in raw_grads_parameters]
+            grads_parameters = [tf.clip_by_value(g, -10, 10) for g in raw_grads_parameters]
             self.discriminator.optimizer.apply_gradients(zip(grads_parameters, self.discriminator.trainable_weights))
 
         # Run forward pass on the generator
