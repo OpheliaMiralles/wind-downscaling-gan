@@ -6,7 +6,7 @@ from tensorflow.keras import Model
 
 
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=5, *args,
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3, *args,
                  **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
         self.generator = generator
@@ -19,19 +19,19 @@ class GAN(Model):
         return self.generator._assert_compile_was_called() and self.discriminator._assert_compile_was_called()
 
     def train_step(self, data):
-        gamma = 10
+        gamma = 100
         low_res, high_res, sample_weight = tf.keras.utils.unpack_x_y_sample_weight(data)
         batch_size = tf.shape(low_res)[0]
         # Train discriminator during _n_critic steps before updating the generator
         for t in range(self._n_critic):
             # Compute gradient penalty
             noise = self.noise_generator(batch_size)
-            fake_high_res = self.generator([low_res, noise], training=False)
+            fake_high_res = self.generator([low_res, noise], training=True)
             eps = tf.random.uniform(shape=(batch_size, 1, 1, 1, 1), minval=0, maxval=1)
             combined_high_res = eps * high_res + (1 - eps) * fake_high_res
             with tf.GradientTape() as reg_tape:
                 reg_tape.watch(combined_high_res)
-                out = self.discriminator([low_res, combined_high_res], training=False)
+                out = self.discriminator([low_res, combined_high_res], training=True)
             gradients_image = reg_tape.gradient(out, combined_high_res)
             gradients_image = tf.sqrt(tf.reduce_sum(gradients_image ** 2, axis=[1, 2, 3]))
             gradient_reg = gamma * tf.reduce_mean((gradients_image - 1) ** 2)
@@ -50,22 +50,29 @@ class GAN(Model):
         with tf.GradientTape() as gen_tape:
             noise = self.noise_generator(batch_size)
             fake_high_res = self.generator([low_res, noise], training=True)
-            fake_high_res_score = self.discriminator([low_res, fake_high_res], training=False)
+            fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
             gen_disc_loss = -tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
             gen_loss = gen_disc_loss
-        grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
-        self.generator.optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
+        gen_grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
+        self.generator.optimizer.apply_gradients(zip(gen_grads, self.generator.trainable_weights))
+
+        # Recompute for the metrics
+        high_res_score = self.discriminator([low_res, high_res], training=False)
+        fake_high_res = self.generator([low_res, self.noise_generator(batch_size)], training=False)
+        fake_high_res_score = self.discriminator([low_res, fake_high_res], training=False)
+        disc_loss = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight)
+        gen_loss = -tf.reduce_mean(fake_high_res_score)
 
         # Update metrics
         self.generator.compiled_metrics.update_state(high_res, fake_high_res, sample_weight)
         self.compiled_metrics.update_state(high_res_score, fake_high_res_score, sample_weight)
-        disc_loss_unregularized = self.discriminator.compiled_loss(high_res_score, fake_high_res_score, sample_weight)
 
         # Collect metrics to return
-        return_metrics = {'d_loss': disc_loss_unregularized,
+        return_metrics = {'d_loss': disc_loss,
                           'g_loss': gen_loss,
                           'd_gradient_pen': tf.reduce_mean(gradients_image),
-                          'd_gradient_param': tf.reduce_mean([tf.reduce_mean(g) for g in grads_parameters])}
+                          'g_gradient_param': tf.reduce_mean([tf.reduce_mean(g ** 2) for g in gen_grads]),
+                          'd_gradient_param': tf.reduce_mean([tf.reduce_mean(g ** 2) for g in grads_parameters])}
         for metric in self.metrics:
             result = metric.result()
             if isinstance(result, dict):
