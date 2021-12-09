@@ -93,7 +93,7 @@ def train_with_all_data(sequence_length=3,
                                        high_res_channels=OUT_CHANNELS, n_timesteps=sequence_length)
     print(f"Discriminator: {discriminator.count_params():,} weights")
     noise_shape = (batch_size, sequence_length, img_size, img_size, noise_channels)
-    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=0.01))
+    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=1.))
     print(f"Total: {gan.generator.count_params() + gan.discriminator.count_params():,} weights")
 
     def compile(g):

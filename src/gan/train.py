@@ -16,9 +16,7 @@ def generator_loss(real_output, fake_output):
 
 
 def generator_optimizer():
-    return tf.keras.optimizers.Adam(lr=1e-4, beta_1=0.5, beta_2=0.9, epsilon=0.1)
-    # return tf.keras.optimizers.RMSprop(learning_rate=5e-5)
-
+    return tf.keras.optimizers.RMSprop(learning_rate=5e-5)
 
 class discriminator_score_real(tf.keras.metrics.Mean):
     def __init__(self, name='d_real', **kwargs):
@@ -39,5 +37,4 @@ class discriminator_score_fake(tf.keras.metrics.Mean):
 
 
 def discriminator_optimizer():
-    return tf.keras.optimizers.Adam(lr=4e-4, beta_1=0.5, beta_2=0.9, epsilon=0.1)
-    # return tf.keras.optimizers.RMSprop(learning_rate=5e-5)
+    return tf.keras.optimizers.RMSprop(learning_rate=5e-5)

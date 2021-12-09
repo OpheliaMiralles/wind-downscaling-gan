@@ -25,7 +25,7 @@ from gan.models import make_generator, make_discriminator
 
 TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
-DATA_ROOT = Path("/Volumes/Extreme SSD/data/")  # Path(os.getenv('DATA_ROOT', './data'))
+DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 CHECKPOINT_ROOT = Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 # variables used in the run
@@ -43,6 +43,7 @@ def get_network_from_config(len_inputs=2,
                             img_size=128,
                             batch_size=16,
                             noise_channels=20,
+                            noise_std=0.1
                             ):
     # Creating GAN
     generator = make_generator(image_size=img_size, in_channels=len_inputs,
@@ -54,7 +55,7 @@ def get_network_from_config(len_inputs=2,
                                        high_res_channels=len_outputs, n_timesteps=sequence_length)
     print(f"Discriminator: {discriminator.count_params():,} weights")
     noise_shape = (batch_size, sequence_length, img_size, img_size, noise_channels)
-    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=1))
+    gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=noise_std))
     print(f"Total: {gan.generator.count_params() + gan.discriminator.count_params():,} weights")
     gan.compile(generator_optimizer=train.generator_optimizer(),
                 generator_metrics=[metrics.AngularCosineDistance(),
@@ -86,6 +87,7 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
                              img_size=128,
                              batch_size=16,
                              noise_channels=20,
+                             noise_std=0.1,
                              cosmoblurred=False,
                              batch_workers=None,
                              data_provider: str = 'local',
@@ -136,7 +138,7 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
 
     network = get_network_from_config(len_inputs=INPUT_CHANNELS, len_outputs=OUT_CHANNELS,
                                       sequence_length=sequence_length, img_size=img_size, batch_size=batch_size,
-                                      noise_channels=noise_channels)
+                                      noise_channels=noise_channels, noise_std=noise_std)
     str_net = 'gan'
     gen = network.generator
     # Saving results
@@ -245,11 +247,12 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
     return predicted_data
 
 
-def plot_predicted_maps_Switzerland(run_id, date, epoch, hour, variable_to_plot,
+def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
                                     sequence_length=6,
                                     img_size=128,
                                     batch_size=16,
                                     noise_channels=20,
+                                    noise_std=0.1,
                                     cosmoblurred_sample=False,
                                     cosmoblurred_run=False,
                                     data_provider: str = 'local',
@@ -263,7 +266,7 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour, variable_to_plot,
     run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
     network = get_network_from_config(len_inputs=len(ALL_INPUTS), len_outputs=len(ALL_OUTPUTS),
                                       sequence_length=sequence_length, img_size=img_size, batch_size=batch_size,
-                                      noise_channels=noise_channels)
+                                      noise_channels=noise_channels, noise_std=noise_std)
     str_net = 'gan'
     # Saving results
     checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch:02d}.ckpt'
@@ -276,60 +279,59 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour, variable_to_plot,
                                               overlapping_bonus=overlapping_bonus)
     range_long = (5.8, 10.6)
     range_lat = (45.75, 47.9)
-    fig = plt.figure(constrained_layout=False, figsize=(15, 10))
-    gs = gridspec.GridSpec(2, 3, figure=fig)
-    ax1 = fig.add_subplot(gs[0, 0], projection=HigherResPlateCarree())
-    ax2 = fig.add_subplot(gs[0, 1], projection=HigherResPlateCarree())
-    ax3 = fig.add_subplot(gs[0, 2], projection=HigherResPlateCarree())
-    ax4 = fig.add_subplot(gs[1, 0], projection=HigherResPlateCarree())
-    ax5 = fig.add_subplot(gs[1, 1], projection=HigherResPlateCarree())
-    ax6 = fig.add_subplot(gs[1, 2], projection=HigherResPlateCarree())
-    axes = [ax1, ax2, ax3, ax4, ax5, ax6]
-    cosmo_var = 'U_10M' if variable_to_plot == 'u10' else 'V_10M'
-    text = 'U-component' if variable_to_plot == 'u10' else 'V-component'
-    cbar_kwargs = {"orientation": "horizontal", "shrink": 0.7,
-                   "label": f"10-meter {text} (m.s-1)"}
-    inp = input_image.isel(time=hour).get(cosmo_var) if cosmoblurred_sample else input_image.isel(time=hour).get(
-        variable_to_plot)
+    fig = plt.figure(constrained_layout=True, figsize=(15, 10))
+    gs = gridspec.GridSpec(3, 3, figure=fig)
+    axes=[]
+    for i in range(3):
+        axes.append([])
+        for j in range(3):
+            ax = fig.add_subplot(gs[i, j], projection=HigherResPlateCarree())
+            axes[i].append(ax)
+    for variable_to_plot, i in zip(['u10', 'v10'], [0,1]):
+        ax = axes[i]
+        cosmo_var = 'U_10M' if variable_to_plot == 'u10' else 'V_10M'
+        text = 'U-component' if variable_to_plot == 'u10' else 'V-component'
+        cbar_kwargs = {"orientation": "horizontal", "shrink": 0.25,
+                       "label": f"10-meter {text} (m.s-1)"}
+        inp = input_image.isel(time=hour).get(cosmo_var) if cosmoblurred_sample else input_image.isel(time=hour).get(
+            variable_to_plot)
+        cosmo = output_image.isel(time=hour).get(cosmo_var)
+        pred = predicted.isel(time=hour).get(variable_to_plot)
+        mini = np.nanmin(output_image.isel(time=hour).get(cosmo_var).__array__())
+        maxi = np.nanmax(output_image.isel(time=hour).get(cosmo_var).__array__())
+        vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
+        inp.plot(cmap='jet', ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
+        pr = cosmo.plot(cmap='jet', ax=ax[1], transform=crs_cosmo, add_colorbar=False)
+        pred.plot(cmap='jet', ax=ax[2], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
+        title_inp = 'COSMO1 blurred data' if cosmoblurred_sample else 'ERA5 reanalysis data'
+        ax[0].set_title(title_inp)
+        ax[1].set_title('COSMO-1 data')
+        ax[2].set_title('Predicted')
+        fig.colorbar(pr, ax=ax, **cbar_kwargs)
+    ax = axes[2]
     dem = input_image.elevation.isel(time=hour)
-    cosmo = output_image.isel(time=hour).get(cosmo_var)
-    pred = predicted.isel(time=hour).get(variable_to_plot)
-    mini = np.nanmin(output_image.isel(time=hour).get(cosmo_var).__array__())
-    maxi = np.nanmax(output_image.isel(time=hour).get(cosmo_var).__array__())
-    vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
-    inp.plot(cmap='jet', ax=ax1, transform=crs_cosmo, vmin=vmin, vmax=vmax,
-             cbar_kwargs=cbar_kwargs)
-    dem.plot(ax=ax2, transform=crs_cosmo, cmap=plt.cm.terrain, norm=LogNorm(vmin=58, vmax=4473),
+    dem.plot(ax=ax[0], transform=crs_cosmo, cmap=plt.cm.terrain, norm=LogNorm(vmin=58, vmax=4473),
              cbar_kwargs={"orientation": "horizontal", "shrink": 0.7, "label": f"terrain height (m)"})
-    cosmo.plot(cmap='jet', ax=ax3, transform=crs_cosmo,
-               cbar_kwargs=cbar_kwargs)
-    pred.plot(cmap='jet', ax=ax6, transform=crs_cosmo, vmin=vmin, vmax=vmax,
-              cbar_kwargs=cbar_kwargs)
-    title_inp = 'COSMO1 blurred data' if cosmoblurred_sample else 'ERA5 reanalysis data'
-    ax1.set_title(title_inp)
-    ax2.set_title('DEM')
-    ax3.set_title('COSMO-1 data')
-    ax6.set_title('Predicted')
-    for metric, ax, name, cmap, vmin in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax4, ax5], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
+    ax[0].set_title('DEM')
+    ax[0].add_feature(cartopy.feature.RIVERS.with_scale('10m'), color=plt.cm.terrain(0.))
+    ax[0].add_feature(cartopy.feature.LAKES.with_scale('10m'), color=plt.cm.terrain(0.))
+    for metric, ax, name, cmap, vmin in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax[1], ax[2]], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
                                             ['brg', 'Reds'], [-1., 0.]):
         real_output = output_image[['U_10M', 'V_10M']].sel(x_1=np.unique(predicted.x_1[:]), y_1=np.unique(predicted.y_1[:]))
         fake_output = predicted[['u10', 'v10']]
         dist = metric(real_output, fake_output)
         dist.mean(dim='time').plot(cmap=cmap, ax=ax, transform=crs_cosmo, vmin=vmin, vmax=1., cbar_kwargs={"orientation": "horizontal", "shrink": 0.7})
         ax.set_title(name)
-    for ax in axes:
+    for ax in [item for sublist in axes for item in sublist]:
         ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
         ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
-    ax2.add_feature(cartopy.feature.RIVERS.with_scale('10m'), color=plt.cm.terrain(0.))
-    ax2.add_feature(cartopy.feature.LAKES.with_scale('10m'), color=plt.cm.terrain(0.))
-    fig.tight_layout()
     return fig
-
 
 def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
                             img_size=128,
                             batch_size=16,
                             noise_channels=20,
+                            noise_std=0.1,
                             cosmoblurred=False,
                             batch_workers=None,
                             data_provider: str = 'local',
@@ -368,7 +370,7 @@ def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
     OUT_CHANNELS = len(ALL_OUTPUTS)
     network = get_network_from_config(len_inputs=INPUT_CHANNELS, len_outputs=OUT_CHANNELS,
                                       sequence_length=sequence_length, img_size=img_size, batch_size=batch_size,
-                                      noise_channels=noise_channels)
+                                      noise_channels=noise_channels, noise_std=noise_std)
     str_net = 'gan'
     gen = network.generator
     # Saving results
@@ -481,3 +483,4 @@ def plot_mean_spatial_pattern(targets, predictions):
     fig.suptitle('Mean spatial wind pattern')
     fig.tight_layout()
     return fig
+
