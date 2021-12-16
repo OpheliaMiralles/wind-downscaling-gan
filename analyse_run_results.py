@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from cartopy.crs import epsg
+from cartopy.crs import epsg, Geodetic
 from matplotlib.colors import LogNorm
 from silence_tensorflow import silence_tensorflow
 
@@ -25,11 +25,12 @@ from gan.models import make_generator, make_discriminator
 
 TEST_METRICS = [WindSpeedRMSE, WindSpeedWeightedRMSE, WeightedRMSEForExtremes,
                 LogSpectralDistance, SpatialKS, AngularCosineDistance]
-DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
-CHECKPOINT_ROOT = Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
+DATA_ROOT = Path("/Volumes/Extreme SSD/data/")  # Path(os.getenv('DATA_ROOT', './data'))
+DEM_data_path = DATA_ROOT / 'dem'
+CHECKPOINT_ROOT = Path("/Volumes/Extreme SSD/checkpoints/")  # Path(os.getenv('CHECKPOINT_ROOT', './checkpoints'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
 # variables used in the run
-TOPO_PREDICTORS = []
+TOPO_PREDICTORS = ['elevation']
 HOMEMADE_PREDICTORS = []
 ERA5_PREDICTORS_SURFACE = ['u10', 'v10']
 ERA5_PREDICTORS_Z500 = []
@@ -97,8 +98,8 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
     ALL_OUTPUTS = ['U_10M', 'V_10M']
     if batch_workers is None:
         batch_workers = os.cpu_count()
-    ALL_INPUTS = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-    ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    ALL_INPUTS += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
     input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred)
     run_id = f'{run_id}_cosmo_blurred' if cosmoblurred else run_id
     START_DATE = pd.to_datetime(start_date)
@@ -174,8 +175,8 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
     :param overlapping_bonus: number of columns added to the integer part of the ratios pixel_lat/img_size and pixel_lon/img_size with the overlap option
     :return:
     """
-    input_vars = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-    input_vars += ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    input_vars = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    input_vars += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
     range_long = (5.73, 10.67)
     range_lat = (45.69, 47.97)
     if handle_borders == 'crop':
@@ -260,8 +261,8 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
                                     overlapping_bonus=0
                                     ):
     ALL_OUTPUTS = ['U_10M', 'V_10M']
-    ALL_INPUTS = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-    ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    ALL_INPUTS += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
     input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred_sample)
     run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
     network = get_network_from_config(len_inputs=len(ALL_INPUTS), len_outputs=len(ALL_OUTPUTS),
@@ -281,13 +282,13 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
     range_lat = (45.75, 47.9)
     fig = plt.figure(constrained_layout=True, figsize=(15, 10))
     gs = gridspec.GridSpec(3, 3, figure=fig)
-    axes=[]
+    axes = []
     for i in range(3):
         axes.append([])
         for j in range(3):
             ax = fig.add_subplot(gs[i, j], projection=HigherResPlateCarree())
             axes[i].append(ax)
-    for variable_to_plot, i in zip(['u10', 'v10'], [0,1]):
+    for variable_to_plot, i in zip(['u10', 'v10'], [0, 1]):
         ax = axes[i]
         cosmo_var = 'U_10M' if variable_to_plot == 'u10' else 'V_10M'
         text = 'U-component' if variable_to_plot == 'u10' else 'V-component'
@@ -327,12 +328,14 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
         ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
     return fig
 
+
 def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
                             img_size=128,
                             batch_size=16,
                             noise_channels=20,
                             noise_std=0.1,
-                            cosmoblurred=False,
+                            cosmoblurred_sample=False,
+                            cosmoblurred_run=False,
                             batch_workers=None,
                             data_provider: str = 'local',
                             saving_frequency=10,
@@ -341,10 +344,10 @@ def compute_metrics_val_set(run_id, start_date, end_date, sequence_length=6,
     ALL_OUTPUTS = ['U_10M', 'V_10M']
     if batch_workers is None:
         batch_workers = os.cpu_count()
-    ALL_INPUTS = TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-    ALL_INPUTS += ['U_10M', 'V_10M'] if cosmoblurred else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
-    input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred)
-    run_id = f'{run_id}_cosmo_blurred' if cosmoblurred else run_id
+    ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+    ALL_INPUTS += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
+    input_provider, output_provider = get_data_providers(data_provider=data_provider, cosmoblurred=cosmoblurred_sample)
+    run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
     START_DATE = pd.to_datetime(start_date)
     END_DATE = pd.to_datetime(end_date)
     NUM_DAYS = (END_DATE - START_DATE).days + 1
@@ -418,7 +421,7 @@ def plot_metrics_data(metrics_data_csv):
 
 def get_targets_and_predictions_for_timerange(network, start_date, end_date, cosmoblurred_sample=False, img_size=128, sequence_length=6,
                                               noise_channels=20, handle_borders='overlap', overlapping_bonus=0):
-    dates = pd.date_range(start_date, end_date, freq='1d')
+    dates = pd.date_range(start_date, end_date, freq='4d')
     predictions = []
     out = []
     for date in dates:
@@ -437,50 +440,106 @@ def get_targets_and_predictions_for_timerange(network, start_date, end_date, cos
     return all_out, all_pred
 
 
-def plot_mean_daily_pattern(targets, predictions):
-    out_daily_pattern = targets.groupby('hour').mean(dim='time')
-    pred_daily_pattern = predictions.groupby('hour').mean(dim='time')
-    fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(15, 10))
-    for ax, name, colorset in zip(axes, ['U-component', 'V-component'], [('salmon', 'goldenrod'), ('navy', 'royalblue')]):
-        if name == 'U-component':
-            out_mean_daily_pattern = out_daily_pattern.mean(dim=['x_1', 'y_1']).U_10M
-            pred_mean_daily_pattern = pred_daily_pattern.mean(dim=['x_1', 'y_1']).u10
-        else:
-            out_mean_daily_pattern = out_daily_pattern.mean(dim=['x_1', 'y_1']).V_10M
-            pred_mean_daily_pattern = pred_daily_pattern.mean(dim=['x_1', 'y_1']).v10
-        out_mean_daily_pattern.plot(ax=ax[0], color=colorset[0], label=name)
-        ax[0].set_title('COSMO 1 target')
-        pred_mean_daily_pattern.plot(ax=ax[1], color=colorset[1], label=name)
-        ax[1].set_title('Prediction')
-    fig.tight_layout()
-    return fig
-
-
-def plot_mean_spatial_pattern(targets, predictions):
-    out_mean_spatial_pattern = targets.median(dim='time')
-    pred_mean_spatial_pattern = predictions.median(dim='time')
-    range_long = (5.8, 10.6)
-    range_lat = (45.75, 47.9)
-    fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(15, 10), subplot_kw={'projection': HigherResPlateCarree()})
+def plot_mean_daily_pattern(targets, predictions, loc=None):
+    out_daily_pattern = targets.groupby('hour').median(dim='time')
+    pred_daily_pattern = predictions.groupby('hour').median(dim='time')
+    fig, axes = plt.subplots(ncols=2, figsize=(15, 5))
     for ax, name in zip(axes, ['U-component', 'V-component']):
         if name == 'U-component':
-            out_mean_spatial_pattern_spec = out_mean_spatial_pattern.U_10M
-            pred_mean_spatial_pattern_spec = pred_mean_spatial_pattern.u10
+            out_spec = out_daily_pattern.U_10M
+            pred_spec = pred_daily_pattern.u10
         else:
-            out_mean_spatial_pattern_spec = out_mean_spatial_pattern.V_10M
-            pred_mean_spatial_pattern_spec = pred_mean_spatial_pattern.v10
-        vmin = -max(np.abs(out_mean_spatial_pattern_spec.min()), out_mean_spatial_pattern_spec.max())
-        vmax = max(np.abs(out_mean_spatial_pattern_spec.min()), out_mean_spatial_pattern_spec.max())
-        pred_mean_spatial_pattern_spec.plot(cmap='jet', ax=ax[1], transform=crs_cosmo, vmin=vmin, vmax=vmax, cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
-                                                                                                                          "label": f"10-meter {name} (m.s-1)"})
-        out_mean_spatial_pattern_spec.plot(cmap='jet', ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
-                                                                                                                         "label": f"10-meter {name} (m.s-1)"})
-        ax[0].set_title('COSMO 1 target')
-        ax[1].set_title('Prediction')
-        for a in ax:
-            a.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
-            a.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
-    fig.suptitle('Mean spatial wind pattern')
+            out_spec = out_daily_pattern.V_10M
+            pred_spec = pred_daily_pattern.v10
+        if loc is not None:
+            out_mean_daily_pattern = out_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
+            pred_mean_daily_pattern = pred_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
+        else:
+            out_mean_daily_pattern = out_spec.mean(dim=['x_1', 'y_1'])
+            pred_mean_daily_pattern = pred_spec.mean(dim=['x_1', 'y_1'])
+        out_mean_daily_pattern.plot(ax=ax, color='navy', label='Target')
+        pred_mean_daily_pattern.plot(ax=ax, color='salmon', label='Predicted')
+        ax.set_title('')
+        ax.set_xlabel('hour')
+        ax.set_ylabel(f'{name} of wind (mps)')
+        ax.legend()
     fig.tight_layout()
     return fig
 
+
+def plot_median_spatial_metrics(targets, predictions):
+    range_long = (5.8, 10.6)
+    range_lat = (45.75, 47.9)
+    fig = plt.figure(constrained_layout=True, figsize=(15, 5))
+    gs = gridspec.GridSpec(1, 2, figure=fig)
+    axes = []
+    for i in range(1):
+        axes.append([])
+        for j in range(2):
+            ax = fig.add_subplot(gs[i, j], projection=HigherResPlateCarree())
+            axes[i].append(ax)
+    ax = axes[0]
+    for metric, ax, name, cmap, vmin in zip([cosine_similarity_from_xarray, tanh_wind_speed_weighted_rmse_from_xarray], [ax[0], ax[1]], ['Cosine Similarity', 'Tanh of Wind Speed Weighted RMSE'],
+                                            ['brg', 'Reds'], [-1., 0.]):
+        real_output = targets[['U_10M', 'V_10M']].sel(x_1=np.unique(predictions.x_1[:]), y_1=np.unique(predictions.y_1[:]))
+        fake_output = predictions[['u10', 'v10']]
+        dist = metric(real_output, fake_output)
+        median = dist.median(dim='time')
+        median.plot(cmap=cmap, ax=ax, transform=crs_cosmo, vmin=vmin, vmax=1., cbar_kwargs={"orientation": "horizontal", "shrink": 0.7})
+        ax.set_title(name)
+    for ax in [item for sublist in axes for item in sublist]:
+        ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
+        ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+    fig.suptitle('Median values over the validation set')
+    return fig
+
+
+def plot_wind_distribution(targets, predictions):
+    fig = plt.figure(constrained_layout=True, figsize=(15, 5))
+    gs = gridspec.GridSpec(1, 2, figure=fig)
+    axes = []
+    for i in range(1):
+        axes.append([])
+        for j in range(2):
+            ax = fig.add_subplot(gs[i, j])
+            axes[i].append(ax)
+    ax = axes[0]
+    wind_speed_targ = np.sqrt(targets.U_10M ** 2 + targets.V_10M ** 2)
+    wind_speed_pred = np.sqrt(predictions.u10 ** 2 + predictions.v10 ** 2)
+    wind_dir_targ = 180 * (np.arctan2(targets.V_10M, targets.U_10M) / np.pi + 1)
+    wind_dir_pred = 180 * (np.arctan2(predictions.v10, predictions.u10) / np.pi + 1)
+    wind_speed_targ.plot(ax=ax[0], bins=50, color='navy', label='Target', density=True)
+    wind_speed_pred.plot(ax=ax[0], bins=50, color='salmon', alpha=0.6, label='Predicted', density=True)
+    ax[0].legend()
+    ax[0].set_xlabel('wind speed (mps)')
+    ax[0].set_ylabel('count')
+    ax[0].set_title('')
+    wind_dir_targ.plot(ax=ax[1], bins=50, color='navy', label='Target', density=True)
+    wind_dir_pred.plot(ax=ax[1], bins=50, color='salmon', alpha=0.6, label='Predicted', density=True)
+    ax[1].legend()
+    ax[1].set_xlabel('wind direction (degrees)')
+    ax[1].set_ylabel('count')
+    ax[1].set_title('')
+    return fig
+
+
+def plot_autocorr(autocorr_in, autocorr_targ, autocorr):
+    autocorr_targ['Lag'] = autocorr_targ['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
+    #autocorr_targ = autocorr_targ[autocorr_targ['Lag'] <= 24]
+    mean_targ = autocorr_targ.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
+    autocorr_in['Lag'] = autocorr_in['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
+    #autocorr_in = autocorr_in[autocorr_in['Lag'] <= 24]
+    mean_in = autocorr_in.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
+    autocorr['Lag'] = autocorr['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
+    #autocorr = autocorr[autocorr['Lag'] <= 24]
+    mean = autocorr.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
+    fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(15, 6))
+    for comp, ax in zip(['U-component', 'V-component'], [ax1, ax2]):
+        ax.plot(mean_in[comp], marker='x', color='royalblue', label=f'Input {comp}')
+        ax.plot(mean_targ[comp], marker='x', color='navy', label=f'Target {comp}')
+        ax.plot(mean[comp], marker='x', color='salmon', label=f'Predicted {comp}')
+        ax.set_xlabel('lag (hours)')
+        ax.set_ylabel('autocorrelation')
+        ax.legend()
+    fig.suptitle('Autocorrelation through time for input, target and predicted wind components')
+    return fig

@@ -399,7 +399,7 @@ def process_wind_variables_file_from_MeteoSwiss(path_to_file: pathlib.Path):
     df["wind_speed_mps"] = df["wind_speed_mps"].replace('-', np.NaN).astype(float)
     df["wind_direction_degrees"] = df["wind_direction_degrees"].replace('-', np.NaN).astype(float)
     df = df.assign(datetime=lambda x: pd.to_datetime(x["datetime_raw"], format='%Y%m%d%H')) \
-        .assign(theta_radians=lambda x: x["wind_direction_degrees"] / 180) \
+        .assign(theta_radians=lambda x: np.pi * x["wind_direction_degrees"] / 180) \
         .assign(u10=lambda x: x["wind_speed_mps"] * np.cos(x["theta_radians"])) \
         .assign(v10=lambda x: x["wind_speed_mps"] * np.sin(x["theta_radians"])) \
         .assign(hour=lambda x: x["datetime_raw"].astype(str).str[-2:]) \
