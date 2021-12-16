@@ -525,13 +525,10 @@ def plot_wind_distribution(targets, predictions):
 
 def plot_autocorr(autocorr_in, autocorr_targ, autocorr):
     autocorr_targ['Lag'] = autocorr_targ['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
-    #autocorr_targ = autocorr_targ[autocorr_targ['Lag'] <= 24]
     mean_targ = autocorr_targ.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
     autocorr_in['Lag'] = autocorr_in['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
-    #autocorr_in = autocorr_in[autocorr_in['Lag'] <= 24]
     mean_in = autocorr_in.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
     autocorr['Lag'] = autocorr['Lag'].apply(lambda x: pd.to_timedelta(x).total_seconds() / 3600).astype(int)
-    #autocorr = autocorr[autocorr['Lag'] <= 24]
     mean = autocorr.set_index(['Component', 'Lag'])['mean_autocorrelation'].unstack('Component')
     fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(15, 6))
     for comp, ax in zip(['U-component', 'V-component'], [ax1, ax2]):
@@ -543,3 +540,42 @@ def plot_autocorr(autocorr_in, autocorr_targ, autocorr):
         ax.legend()
     fig.suptitle('Autocorrelation through time for input, target and predicted wind components')
     return fig
+
+if __name__ == '__main__':
+    epoch=55
+    run_id = '20211209_1611'
+    cosmoblurred_run=True
+    dates = [d.strftime('%Y%m%d') for d in pd.date_range('20190101', '20191231', freq='4d')]
+    inputs = xr.open_mfdataset([PROCESSED_DATA_FOLDER/f'x_{d_str}.nc' for d_str in dates])
+    outputs = xr.open_mfdataset([PROCESSED_DATA_FOLDER/f'y_{d_str}.nc' for d_str in dates])
+    ALL_OUTPUTS = ['U_10M', 'V_10M']
+    for cosmoblurred_sample in [True, False]:
+        ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
+        ALL_INPUTS += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
+        run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
+        network = get_network_from_config(len_inputs=len(ALL_INPUTS), len_outputs=len(ALL_OUTPUTS),
+                                          sequence_length=24, img_size=96, batch_size=8,
+                                          noise_channels=20, noise_std=0.2)
+        str_net = 'gan'
+        # Saving results
+        checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch:02d}.ckpt'
+        network.load_weights(str(checkpoint_path_weights))
+        total_res = []
+        for noise_occ in range(100):
+            preds = get_predicted_map_Switzerland(network, inputs, cosmoblurred_sample=cosmoblurred_sample,
+                                              img_size=96, sequence_length=24,
+                                              noise_channels=20)
+            preds = preds.assign_coords({"nsim": [noise_occ]})
+            total_res.append(preds)
+        tot = xr.concat(total_res, dim="nsim")
+        mean_pred = tot.mean(dim="nsim")
+        q05 = tot.quantile(0.05, dim='nsim')
+        q95 = tot.quantile(0.95, dim='nsim')
+        start='_cosmoblurred' if cosmoblurred_sample else ''
+        mean_pred.to_netcdf(DATA_ROOT / f"mean{start}_pred_{epoch}.nc")
+        q05.to_netcdf(DATA_ROOT / f"q05{start}_pred_{epoch}.nc")
+        q95.to_netcdf(DATA_ROOT / f"q95{start}_pred_{epoch}.nc")
+
+
+
+
