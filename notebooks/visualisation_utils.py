@@ -255,10 +255,10 @@ def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
     print(d_str)
     cosmo = xr.open_mfdataset(pathlib.Path(COSMO1_data_path).glob(f'y_{d_str}.nc')).sel(time=d_str).isel(time=0)[
         'U_10M']
-    inputs_surface = xr.open_dataset(pathlib.Path(ERA5_data_path, f'x_{d_str}.nc')).sel(
+    inputs_surface = xr.open_mfdataset(pathlib.Path(ERA5_data_path).glob(f'*{d_str}*.nc')).sel(
         time=d_str).isel(time=0)['u10']
     fig, (ax1, ax2) = plt.subplots(ncols=2, subplot_kw={'projection': HigherResPlateCarree()},
-                                   figsize=(10, 5))
+                                   figsize=(15, 5))
     range_long = (5.8, 10.6)
     range_lat = (45.75, 47.9)
     vmin = np.min(cosmo.__array__())
@@ -267,11 +267,11 @@ def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
                vmax=vmax,
                cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
                             "label": "10-meter U-component (m.s-1)"})
-    inputs_surface.plot(cmap='jet', ax=ax1, transform=crs_cosmo, vmin=vmin,
+    inputs_surface.plot(cmap='jet', ax=ax1, vmin=vmin,
                         vmax=vmax,
                         cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
                                      "label": "10-meter U-component (m.s-1)"})
-    ax2.set_title('COSMO-1 predictions')
+    ax2.set_title('COSMO-1')
     ax1.set_title('ERA5 reanalysis data')
     for ax in [ax1, ax2]:
         ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])

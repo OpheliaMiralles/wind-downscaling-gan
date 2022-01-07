@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from cartopy.crs import epsg, Geodetic
+from cartopy._crs import Geodetic
+from cartopy.crs import epsg
 from matplotlib.colors import LogNorm
 from silence_tensorflow import silence_tensorflow
 
@@ -162,7 +163,7 @@ def plot_prediction_by_batch(run_id, start_date, end_date, sequence_length=6,
 
 
 def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_length=6, cosmoblurred_sample=False,
-                                  noise_channels=20, handle_borders='overlap', overlapping_bonus=0):
+                                  noise_channels=20, handle_borders='overlap', overlapping_bonus=0, noise=None):
     """
 
     :param network: the network model
@@ -229,7 +230,9 @@ def get_predicted_map_Switzerland(network, input_image, img_size=128, sequence_l
     tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
                                                                                          keepdims=True)
     gen = network.generator
-    predictions = gen.predict([tensors, network.noise_generator(bs=tensors.shape[0], channels=noise_channels)])
+    if noise is None:
+        noise = network.noise_generator(bs=tensors.shape[0], channels=noise_channels)
+    predictions = gen.predict([tensors, noise])
     predicted_squares = {
         (i, j, k): xr.Dataset(
             {v: xr.DataArray(predictions[positions[(i, j, k)], ..., variables_of_interest.index(v)],
@@ -258,7 +261,8 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
                                     cosmoblurred_run=False,
                                     data_provider: str = 'local',
                                     handle_borders='overlap',
-                                    overlapping_bonus=0
+                                    overlapping_bonus=0,
+                                    cmap='jet'
                                     ):
     ALL_OUTPUTS = ['U_10M', 'V_10M']
     ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
@@ -301,9 +305,9 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
         mini = np.nanmin(output_image.isel(time=hour).get(cosmo_var).__array__())
         maxi = np.nanmax(output_image.isel(time=hour).get(cosmo_var).__array__())
         vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
-        inp.plot(cmap='jet', ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
-        pr = cosmo.plot(cmap='jet', ax=ax[1], transform=crs_cosmo, add_colorbar=False)
-        pred.plot(cmap='jet', ax=ax[2], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
+        inp.plot(cmap=cmap, ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
+        pr = cosmo.plot(cmap=cmap, ax=ax[1], transform=crs_cosmo, add_colorbar=False)
+        pred.plot(cmap=cmap, ax=ax[2], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
         title_inp = 'COSMO1 blurred data' if cosmoblurred_sample else 'ERA5 reanalysis data'
         ax[0].set_title(title_inp)
         ax[1].set_title('COSMO-1 data')
@@ -420,8 +424,8 @@ def plot_metrics_data(metrics_data_csv):
 
 
 def get_targets_and_predictions_for_timerange(network, start_date, end_date, cosmoblurred_sample=False, img_size=128, sequence_length=6,
-                                              noise_channels=20, handle_borders='overlap', overlapping_bonus=0):
-    dates = pd.date_range(start_date, end_date, freq='4d')
+                                              noise_channels=20, handle_borders='overlap', overlapping_bonus=0, noise=None):
+    dates = pd.date_range(start_date, end_date, freq='10d')
     predictions = []
     out = []
     for date in dates:
@@ -430,7 +434,7 @@ def get_targets_and_predictions_for_timerange(network, start_date, end_date, cos
         input_image = xr.open_dataset(PROCESSED_DATA_FOLDER / f'x_{d_str}.nc') if not cosmoblurred_sample else xr.open_dataset(PROCESSED_DATA_FOLDER / f'x_cosmo_{d_str}.nc')
         output_image = xr.open_dataset(PROCESSED_DATA_FOLDER / f'y_{d_str}.nc')
         preds = get_predicted_map_Switzerland(network, input_image, cosmoblurred_sample=cosmoblurred_sample, img_size=img_size, sequence_length=sequence_length,
-                                              noise_channels=noise_channels, handle_borders=handle_borders, overlapping_bonus=overlapping_bonus)
+                                              noise_channels=noise_channels, handle_borders=handle_borders, overlapping_bonus=overlapping_bonus, noise=noise)
         predictions.append(preds)
         out.append(output_image)
     all_out = xr.concat(out, dim='time')
@@ -440,25 +444,59 @@ def get_targets_and_predictions_for_timerange(network, start_date, end_date, cos
     return all_out, all_pred
 
 
-def plot_mean_daily_pattern(targets, predictions, loc=None):
-    out_daily_pattern = targets.groupby('hour').median(dim='time')
-    pred_daily_pattern = predictions.groupby('hour').median(dim='time')
+def plot_mean_daily_pattern(inputs, targets, predictions, min_pred=None, max_pred=None, loc=None, cosmoblurred_sample=False):
+    out_daily_pattern = targets.groupby('hour').mean(dim='time')
+    pred_daily_pattern = predictions.groupby('hour').mean(dim='time')
+    input_daily_pattern = inputs.groupby('hour').mean(dim='time')
+    if min_pred is not None:
+        min_pred_daily_pattern = min_pred.groupby('hour').mean(dim='time')
+    if max_pred is not None:
+        max_pred_daily_pattern = max_pred.groupby('hour').mean(dim='time')
     fig, axes = plt.subplots(ncols=2, figsize=(15, 5))
     for ax, name in zip(axes, ['U-component', 'V-component']):
         if name == 'U-component':
             out_spec = out_daily_pattern.U_10M
             pred_spec = pred_daily_pattern.u10
+            if cosmoblurred_sample:
+                inp_spec = input_daily_pattern.U_10M
+            else:
+                inp_spec = input_daily_pattern.u10
+            if min_pred is not None:
+                min_pred_spec = min_pred_daily_pattern.u10
+            if max_pred is not None:
+                max_pred_spec = max_pred_daily_pattern.u10
         else:
             out_spec = out_daily_pattern.V_10M
             pred_spec = pred_daily_pattern.v10
+            if cosmoblurred_sample:
+                inp_spec = input_daily_pattern.V_10M
+            else:
+                inp_spec = input_daily_pattern.v10
+            if min_pred is not None:
+                min_pred_spec = min_pred_daily_pattern.v10
+            if max_pred is not None:
+                max_pred_spec = max_pred_daily_pattern.v10
         if loc is not None:
             out_mean_daily_pattern = out_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
             pred_mean_daily_pattern = pred_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
+            inp_mean_daily_pattern = inp_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
+            if min_pred is not None:
+                min_pred_mean_daily_pattern = min_pred_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
+            if max_pred is not None:
+                max_pred_mean_daily_pattern = max_pred_spec.sel({'x_1': loc['x'], 'y_1': loc['y']}, method='nearest')
         else:
             out_mean_daily_pattern = out_spec.mean(dim=['x_1', 'y_1'])
             pred_mean_daily_pattern = pred_spec.mean(dim=['x_1', 'y_1'])
+            inp_mean_daily_pattern = inp_spec.mean(dim=['x_1', 'y_1'])
+            if min_pred is not None:
+                min_pred_mean_daily_pattern = min_pred_spec.mean(dim=['x_1', 'y_1'])
+            if max_pred is not None:
+                max_pred_mean_daily_pattern = max_pred_spec.mean(dim=['x_1', 'y_1'])
+        inp_mean_daily_pattern.plot(ax=ax, color='royalblue', label='Input')
         out_mean_daily_pattern.plot(ax=ax, color='navy', label='Target')
         pred_mean_daily_pattern.plot(ax=ax, color='salmon', label='Predicted')
+        if min_pred is not None:
+            ax.fill_between(out_daily_pattern.hour, min_pred_mean_daily_pattern, max_pred_mean_daily_pattern, color='salmon', alpha=0.2)
         ax.set_title('')
         ax.set_xlabel('hour')
         ax.set_ylabel(f'{name} of wind (mps)')
@@ -494,6 +532,35 @@ def plot_median_spatial_metrics(targets, predictions):
     return fig
 
 
+def plot_mean_spatial_pattern(targets, predictions, cmap='jet'):
+    out_mean_spatial_pattern = targets.mean(dim='time')
+    pred_mean_spatial_pattern = predictions.mean(dim='time')
+    range_long = (5.8, 10.6)
+    range_lat = (45.75, 47.9)
+    fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(15, 10), subplot_kw={'projection': HigherResPlateCarree()}, constrained_layout=True)
+    for ax, name in zip(axes, ['U-component', 'V-component']):
+        if name == 'U-component':
+            out_mean_spatial_pattern_spec = out_mean_spatial_pattern.U_10M
+            pred_mean_spatial_pattern_spec = pred_mean_spatial_pattern.u10
+        else:
+            out_mean_spatial_pattern_spec = out_mean_spatial_pattern.V_10M
+            pred_mean_spatial_pattern_spec = pred_mean_spatial_pattern.v10
+        mini = np.nanmin(out_mean_spatial_pattern_spec.__array__())
+        maxi = np.nanmax(out_mean_spatial_pattern_spec.__array__())
+        vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
+        pred_mean_spatial_pattern_spec.plot(cmap=cmap, ax=ax[1], transform=crs_cosmo, vmin=vmin, vmax=vmax, cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
+                                                                                                                         "label": f"10-meter {name} (m.s-1)"})
+        out_mean_spatial_pattern_spec.plot(cmap=cmap, ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
+                                                                                                                        "label": f"10-meter {name} (m.s-1)"})
+        ax[0].set_title('COSMO-1 target')
+        ax[1].set_title('Prediction')
+        for a in ax:
+            a.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
+            a.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+    fig.suptitle('Mean spatial wind pattern')
+    return fig
+
+
 def plot_wind_distribution(targets, predictions):
     fig = plt.figure(constrained_layout=True, figsize=(15, 5))
     gs = gridspec.GridSpec(1, 2, figure=fig)
@@ -508,8 +575,8 @@ def plot_wind_distribution(targets, predictions):
     wind_speed_pred = np.sqrt(predictions.u10 ** 2 + predictions.v10 ** 2)
     wind_dir_targ = 180 * (np.arctan2(targets.V_10M, targets.U_10M) / np.pi + 1)
     wind_dir_pred = 180 * (np.arctan2(predictions.v10, predictions.u10) / np.pi + 1)
-    wind_speed_targ.plot(ax=ax[0], bins=50, color='navy', label='Target', density=True)
-    wind_speed_pred.plot(ax=ax[0], bins=50, color='salmon', alpha=0.6, label='Predicted', density=True)
+    wind_speed_targ.plot(ax=ax[0], bins=50, color='navy', alpha=0.6, label='Target', density=True)
+    wind_speed_pred.plot(ax=ax[0], bins=50, color='salmon', alpha=0.3, label='Predicted', density=True)
     ax[0].legend()
     ax[0].set_xlabel('wind speed (mps)')
     ax[0].set_ylabel('count')
@@ -535,24 +602,63 @@ def plot_autocorr(autocorr_in, autocorr_targ, autocorr):
         ax.plot(mean_in[comp], marker='x', color='royalblue', label=f'Input {comp}')
         ax.plot(mean_targ[comp], marker='x', color='navy', label=f'Target {comp}')
         ax.plot(mean[comp], marker='x', color='salmon', label=f'Predicted {comp}')
+        ax.hlines(xmin=mean[comp].index.min(), xmax=mean[comp].index.max(), y=0., color='grey', linestyle='--')
         ax.set_xlabel('lag (hours)')
         ax.set_ylabel('autocorrelation')
         ax.legend()
     fig.suptitle('Autocorrelation through time for input, target and predicted wind components')
+    fig.tight_layout()
     return fig
 
-if __name__ == '__main__':
-    epoch=55
-    run_id = '20211209_1611'
-    cosmoblurred_run=True
-    dates = [d.strftime('%Y%m%d') for d in pd.date_range('20190101', '20191231', freq='4d')]
-    inputs = xr.open_mfdataset([PROCESSED_DATA_FOLDER/f'x_{d_str}.nc' for d_str in dates])
-    outputs = xr.open_mfdataset([PROCESSED_DATA_FOLDER/f'y_{d_str}.nc' for d_str in dates])
+
+def compute_res_ds(epoch, run_id, cosmoblurred_sample, df=1):
+    path = f'preds_from_era5_{epoch}_{run_id}' if not cosmoblurred_sample else f'preds_from_cosmoblurred_{epoch}_{run_id}'
+    dates = [d.strftime('%Y%m%d') for d in pd.date_range('20191001', '20191231', freq='1d')]
+    for date_str in dates:
+        if not os.path.exists(str(DATA_ROOT / path / date_str)):
+            print(f'Processing {date_str}')
+            all_files = list(DATA_ROOT.joinpath(path).glob(f'pred_{date_str}_*.nc'))
+            n = len(all_files)
+            print(f'Loading {all_files[0]} (1/{len(all_files)})')
+            with xr.open_dataset(all_files[0]) as ds:  # Remove nsim coordinate
+                ds = ds.assign(wind_speed=np.sqrt(ds.u10 ** 2 + ds.v10 ** 2))
+                ds = ds.assign(wind_direction=180 * (np.arctan2(ds.v10, ds.u10) / np.pi + 1))
+                mean_ds = ds.mean('nsim')
+                squares_ds = ds.mean('nsim') ** 2
+                min_ds = ds
+                max_ds = ds
+            for i, p in enumerate(all_files[1:]):
+                print(f'Loading {p} ({i + 2}/{len(all_files)})')
+                with xr.open_dataset(p) as ds:
+                    ds = ds.assign(wind_speed=np.sqrt(ds.u10 ** 2 + ds.v10 ** 2))
+                    ds = ds.assign(wind_direction=180 * (np.arctan2(ds.v10, ds.u10) / np.pi + 1))
+                    mean_ds += ds.mean('nsim')
+                    squares_ds += ds.mean('nsim') ** 2
+                    min_ds = xr.concat([min_ds, ds], 'nsim').min('nsim').expand_dims(nsim=[0])
+                    max_ds = xr.concat([max_ds, ds], 'nsim').max('nsim').expand_dims(nsim=[0])
+            del ds
+            mean_ds = mean_ds / n
+            std_ds = np.sqrt((squares_ds - n * mean_ds ** 2) / (n - df))
+            min_ds = min_ds.mean('nsim')  # drop nsim
+            max_ds = max_ds.mean('nsim')  # ditto
+
+            target_folder = DATA_ROOT / path / date_str
+            target_folder.mkdir(exist_ok=True)
+            mean_ds.to_netcdf(target_folder / 'mean.nc')
+            std_ds.to_netcdf(target_folder / 'std.nc')
+            min_ds.to_netcdf(target_folder / 'min.nc')
+            max_ds.to_netcdf(target_folder / 'max.nc')
+
+
+def generate_sims(epoch, run_id, cosmoblurred_run=False):
+    orig_run_id = run_id
+    run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
+    dates = [d.strftime('%Y%m%d') for d in pd.date_range('20191001', '20191231', freq='1d')]
     ALL_OUTPUTS = ['U_10M', 'V_10M']
-    for cosmoblurred_sample in [True, False]:
+    for cosmoblurred_sample in [True]:
+        path = f'preds_from_era5_{epoch}_{orig_run_id}' if not cosmoblurred_sample else f'preds_from_cosmoblurred_{epoch}_{orig_run_id}'
         ALL_INPUTS = ['U_10M', 'V_10M'] if cosmoblurred_sample else ERA5_PREDICTORS_Z500 + ERA5_PREDICTORS_SURFACE
         ALL_INPUTS += TOPO_PREDICTORS + HOMEMADE_PREDICTORS
-        run_id = f'{run_id}_cosmo_blurred' if cosmoblurred_run else run_id
         network = get_network_from_config(len_inputs=len(ALL_INPUTS), len_outputs=len(ALL_OUTPUTS),
                                           sequence_length=24, img_size=96, batch_size=8,
                                           noise_channels=20, noise_std=0.2)
@@ -560,22 +666,136 @@ if __name__ == '__main__':
         # Saving results
         checkpoint_path_weights = Path(f'{CHECKPOINT_ROOT}/{str_net}') / run_id / f'weights-{epoch:02d}.ckpt'
         network.load_weights(str(checkpoint_path_weights))
-        total_res = []
-        for noise_occ in range(100):
-            preds = get_predicted_map_Switzerland(network, inputs, cosmoblurred_sample=cosmoblurred_sample,
-                                              img_size=96, sequence_length=24,
-                                              noise_channels=20)
-            preds = preds.assign_coords({"nsim": [noise_occ]})
-            total_res.append(preds)
-        tot = xr.concat(total_res, dim="nsim")
-        mean_pred = tot.mean(dim="nsim")
-        q05 = tot.quantile(0.05, dim='nsim')
-        q95 = tot.quantile(0.95, dim='nsim')
-        start='_cosmoblurred' if cosmoblurred_sample else ''
-        mean_pred.to_netcdf(DATA_ROOT / f"mean{start}_pred_{epoch}.nc")
-        q05.to_netcdf(DATA_ROOT / f"q05{start}_pred_{epoch}.nc")
-        q95.to_netcdf(DATA_ROOT / f"q95{start}_pred_{epoch}.nc")
+        for noise_occ in range(0, 200, 1):
+            print(noise_occ)
+            noise = network.noise_generator(bs=20, channels=20)  # same noise repeated for single simulation
+            for date in dates:
+                if not os.path.exists(str(DATA_ROOT / path / date)):
+                    _, preds = get_targets_and_predictions_for_timerange(network, start_date=date, end_date=date, cosmoblurred_sample=cosmoblurred_sample,
+                                                                         img_size=96, sequence_length=24,
+                                                                         noise_channels=20, noise=noise)
+                    preds = preds.drop_vars(np.intersect1d([v for v in preds.variables], ['longitude', 'latitude', 'x', 'y', 'lon_1', 'lat_1'])).expand_dims({'nsim': [noise_occ]})
+                    target_folder = DATA_ROOT / path
+                    target_folder.mkdir(exist_ok=True)
+                    preds.to_netcdf(target_folder / f"pred_{date}_{noise_occ}.nc")
 
 
+def plot_qq_ws_station(targets, mean_pred, min_pred, max_pred, lon, lat, station_name, ax=None):
+    if not ax:
+        ax = plt.gca()
+    geo = Geodetic()
+    if station_name in ['Lausanne', 'Basel', 'St. Gallen', 'Lugano']:
+        delta = 0.01
+        delta_lat = 0.01
+    else:
+        delta = 0.07
+        delta_lat = 0.02
+    name = station_name
+    xmax, ymax = crs_cosmo.transform_point(lon + delta, lat + delta_lat, geo)
+    xmin, ymin = crs_cosmo.transform_point(lon - delta, lat - delta_lat, geo)
+    target_spec = targets.sel(x_1=slice(xmin, xmax), y_1=slice(ymin, ymax))
+    mean_pred_spec = mean_pred.sel(x_1=slice(xmin, xmax), y_1=slice(ymin, ymax))
+    min_pred_spec = min_pred.sel(x_1=slice(xmin, xmax), y_1=slice(ymin, ymax))
+    max_pred_spec = max_pred.sel(x_1=slice(xmin, xmax), y_1=slice(ymin, ymax))
+    wind_speed_targ = np.sqrt(target_spec.U_10M ** 2 + target_spec.V_10M ** 2).to_numpy().flatten()
+    wind_speed_pred = np.sqrt(mean_pred_spec.u10 ** 2 + mean_pred_spec.v10 ** 2).to_numpy().flatten()
+    wind_speed_pred_up = max_pred_spec.wind_speed.to_numpy().flatten()
+    wind_speed_pred_down = min_pred_spec.wind_speed.to_numpy().flatten()
+    levels = np.linspace(0.01, 0.99, 100)
+    quant_targ = np.quantile(wind_speed_targ, levels)
+    quant_pred = np.quantile(wind_speed_pred, levels)
+    quant_pred_up = np.quantile(wind_speed_pred_up, levels)
+    quant_pred_down = np.quantile(wind_speed_pred_down, levels)
+    ax.scatter(quant_targ, quant_pred, s=5, color="navy")
+    ax.plot(quant_targ, quant_targ, label=f"$x=y$", color="navy")
+    ax.fill_between(
+        x=quant_targ, y1=quant_pred_down, y2=quant_pred_up, alpha=0.2, color="navy"
+    )
+    ax.legend()
+    ax.set_xlabel(f"Realized quantiles")
+    ax.set_ylabel("Predicted quantiles")
+    ax.set_title(f"QQ plot of wind speed around {name}")
+    return ax
 
 
+def compute_autocorrelation(lag, interest_array):
+    mean = interest_array.mean(dim='time')
+    var = interest_array.time.shape[0] * interest_array.var(dim='time')
+    start = pd.to_datetime(interest_array.time.data.min())
+    end = pd.to_datetime(interest_array.time.data.max())
+    ontime = interest_array.sel(time=slice((start + lag).strftime('%Y%m%d %H:%M'), None)) - mean
+    lagged = interest_array.sel(time=slice(None, (end - lag).strftime('%Y%m%d %H:%M'))).assign_coords({'time': ontime.time}) - mean
+    cov = (ontime * lagged).sum(dim='time')
+    autocorr = (cov / var).expand_dims({'lag': [lag]})
+    return autocorr
+
+
+def compute_autocorr_df(dataset, epoch=None, run_id=None, cosmoblurred_sample=False, inputs=False):
+    lags = pd.timedelta_range('0H', '2d', freq='2H')
+    results = []
+    for lag in lags:
+        print(lag)
+        for name in ['U-component', 'V-component']:
+            if name == 'U-component':
+                if epoch is not None:
+                    start = '_cosmoblurred' if cosmoblurred_sample else ''
+                    array = dataset.u10
+                else:
+                    try:
+                        array = dataset.U_10M
+                        start = 'cosmo' if not inputs else 'cosmoblurred'
+                    except:
+                        array = dataset.u10
+                        start = 'era5'
+            else:
+                if epoch is not None:
+                    array = dataset.v10
+                else:
+                    try:
+                        array = dataset.V_10M
+                    except:
+                        array = dataset.u10
+            autocov = compute_autocorrelation(lag, array)
+            q_05 = float(autocov.quantile(0.05, ['x_1', 'y_1']))
+            q_95 = float(autocov.quantile(0.95, ['x_1', 'y_1']))
+            med = float(autocov.median(['x_1', 'y_1']))
+            mean = float(autocov.mean(['x_1', 'y_1']))
+            df = pd.DataFrame([[lag, name, mean, med, q_05, q_95]], columns=['Lag', 'Component', 'mean_autocorrelation', 'median_autocorrelation', 'q05_pct', 'q95_pct'])
+            results.append(df)
+    if epoch is not None:
+        filename = f'autocorr_{epoch}{start}.csv'
+    else:
+        filename = f'autocorr_{start}.csv'
+    spatial_mean = pd.concat(results).set_index(['Lag', 'Component'])
+    return spatial_mean
+
+
+def plot_autocorrelation_for_specific_lag(dataset, lag, epoch=None, cmap='bwr'):
+    range_long = (5.8, 10.6)
+    range_lat = (45.75, 47.9)
+    fig, axes = plt.subplots(ncols=2, nrows=1, figsize=(15, 6), subplot_kw={'projection': HigherResPlateCarree()})
+    for ax, name in zip(axes, ['U-component', 'V-component']):
+        if name == 'U-component':
+            if epoch is not None:
+                array = dataset.u10
+            else:
+                try:
+                    array = dataset.U_10M
+                except:
+                    array = dataset.u10
+        else:
+            if epoch is not None:
+                array = dataset.v10
+            else:
+                try:
+                    array = dataset.V_10M
+                except:
+                    array = dataset.u10
+        autocov = compute_autocorrelation(lag, array)
+        autocov.plot(cmap=cmap, ax=ax, vmin=0, vmax=1, transform=crs_cosmo, cbar_kwargs={"orientation": "horizontal", "shrink": 0.7, "label": "autocorrelation"})
+        ax.set_title(f'COSMO-1 10-meter {name}')
+        ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
+        ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+    fig.suptitle(f'Spatial autocorrelation for lag {lag}')
+    fig.tight_layout()
+    return fig
