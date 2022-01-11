@@ -21,6 +21,7 @@ results
 models
 *.npy
 *.nc
+!switzerland_cosmo_map.nc
 *.png
 *.gif
 *.tif
