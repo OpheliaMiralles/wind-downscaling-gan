@@ -31,28 +31,32 @@ def process_topo(raster_topo: xr.DataArray, high_res_template: xr.Dataset):
     dem = raster_topo.isel(band=0, drop=True)
     inputs_topo = xr.DataArray(dem,
                                coords=dem.coords,
-                               name='elevation').to_dataset().sel(x=high_res_template.get(lon_coord), y=high_res_template.get(lat_coord), method='nearest')
+                               name='elevation').to_dataset().sel(x=high_res_template.get(lon_coord), y=high_res_template.get(lat_coord), method='nearest').drop(['x', 'y'])
     return inputs_topo
 
 
 def process_era5(ds_era5: xr.Dataset, high_res_template: xr.Dataset):
     lon_coord, lat_coord = [c for c in high_res_template.coords if c.startswith('lon')][0], [c for c in high_res_template.coords if c.startswith('lat')][0]
-    inputs_surface = ds_era5[['u10', 'v10']].sel(longitude=high_res_template.get(lon_coord), latitude=high_res_template.get(lat_coord), method='nearest')
+    inputs_surface = ds_era5[['u10', 'v10']].sel(longitude=high_res_template.get(lon_coord), latitude=high_res_template.get(lat_coord), method='nearest').drop(['longitude', 'latitude'])
     return inputs_surface
 
 
-def build_high_res_template_from_era5(ds_era5: xr.Dataset, range_long=None, range_lat=None):
+def build_high_res_template_from_era5(ds_era5: xr.Dataset, range_lon=None, range_lat=None):
     upsampling_lat = 26
     upsampling_lon = 18
-    if not range_long:
-        range_long = (float(ds_era5.longitude.min()), float(ds_era5.longitude.max()))
+    if not range_lon:
+        range_lon = (float(ds_era5.longitude.min()), float(ds_era5.longitude.max()))
+    else:
+        ds_era5 = ds_era5.sel(longitude=slice(range_lon[0], range_lon[1]))
     if not range_lat:
         range_lat = (float(ds_era5.latitude.min()), float(ds_era5.latitude.max()))
+    else:
+        ds_era5 = ds_era5.sel(latitude=slice(range_lat[1], range_lat[0]))
     nb_lon = ds_era5.dims['longitude']
     nb_lat = ds_era5.dims['latitude']
-    new_longitudes = np.linspace(range_long[0], range_long[1], upsampling_lon * nb_lon)
+    new_longitudes = np.linspace(range_lon[0], range_lon[1], upsampling_lon * nb_lon)
     new_latitudes = np.linspace(range_lat[0], range_lat[1], upsampling_lat * nb_lat)
-    high_res_template = ds_era5.coords.to_dataset().sel(longitude=new_longitudes, latitude=new_latitudes, method='nearest')
+    high_res_template = ds_era5.coords.to_dataset().assign_coords({'lon_1': new_longitudes, 'lat_1': new_latitudes}).drop(['longitude', 'latitude'])
     return high_res_template
 
 
@@ -103,9 +107,9 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
         [[0], np.ones(leftovers_y), np.zeros(nrows - leftovers_y - 1)]).cumsum()
     slices_start_x, slices_start_y = [int(i * xdist + x) for (i, x) in zip(range(ncols), x_vec_leftovers)], [
         int(j * ydist + y) for (j, y) in zip(range(nrows), y_vec_leftovers)]
-    squares = {(sx, sy, k): ds_in.isel(time=slice(k * SEQUENCE_LENGTH, (k + 1) * SEQUENCE_LENGTH),
-                                       x_1=slice(sx, sx + IMG_SIZE),
-                                       y_1=slice(sy + IMG_SIZE - 1, sy - 1, -1) if sy != 0 else slice(IMG_SIZE, 0, -1)
+    squares = {(sx, sy, k): ds_in.isel({"time": slice(k * SEQUENCE_LENGTH, (k + 1) * SEQUENCE_LENGTH),
+                                        lon_coord_hr: slice(sx, sx + IMG_SIZE),
+                                        lat_coord_hr: slice(sy + IMG_SIZE - 1, sy - 1, -1) if sy != 0 else slice(IMG_SIZE, 0, -1)}
                                        )[['u10', 'v10', 'elevation']]
                for sx in slices_start_x
                for sy in slices_start_y
@@ -126,22 +130,22 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
             coords=squares[(i, j, k)].coords)
         for (i, j, k) in squares
     }
-    predicted_squares = {v: predicted_squares[v].isel(x_1=slice(2, -2), y_1=slice(2, -2)) for v in predicted_squares}
+    predicted_squares = {v: predicted_squares[v].isel({lon_coord_hr: slice(2, -2), lat_coord_hr: slice(2, -2)}) for v in predicted_squares}
     bigdata = pd.concat([s.to_dataframe() for s in predicted_squares.values()])
     unique = bigdata.groupby(level=['time'] + [lat_coord_hr, lon_coord_hr]).mean()
     predicted_data = xr.Dataset.from_dataframe(unique)
     return predicted_data
 
 
-def downscale(era5: xr.Dataset, raster_topo: xr.DataArray):
-    high_res_template = build_high_res_template_from_era5(era5)
+def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range_lat=None):
+    high_res_template = build_high_res_template_from_era5(era5, range_lon=range_lon, range_lat=range_lat)
     inputs_era5 = process_era5(era5, high_res_template)
     inputs_topo = process_topo(raster_topo, high_res_template)
     prediction = predict(inputs_era5, inputs_topo, high_res_template)
     return prediction
 
 
-def plot_wind_fields(ds: xr.Dataset, cmap='bwr', title='', range_long=None, range_lat=None, high_res_crs=None):
+def plot_wind_fields(ds: xr.Dataset, cmap='bwr', title='', range_lon=None, range_lat=None, high_res_crs=None):
     fig = plt.figure(constrained_layout=True, figsize=(15, 5))
     gs = gridspec.GridSpec(1, 2, figure=fig)
     axes = []
@@ -166,13 +170,17 @@ def plot_wind_fields(ds: xr.Dataset, cmap='bwr', title='', range_long=None, rang
         ax.set_title(title)
         fig.colorbar(pr, ax=ax, **cbar_kwargs)
     for ax in axes:
-        if range_long is not None and range_lat is not None:
-            ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
-        ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
+        if range_lon is not None and range_lat is not None:
+            ax.set_extent([range_lon[0], range_lon[1], range_lat[0], range_lat[1]])
+        borders = cartopy.feature.NaturalEarthFeature(category='cultural',
+                                                      name='admin_0_boundary_lines_land',
+                                                      scale='10m', facecolor='none')
+        ax.add_feature(borders, edgecolor='black')
+        ax.coastlines(resolution='10m', color='black')
     return fig
 
 
-def plot_elevation(raster_topo: xr.DataArray, range_long=None, range_lat=None):
+def plot_elevation(raster_topo: xr.DataArray, range_lon=None, range_lat=None):
     dem = raster_topo.isel(band=0, drop=True)
     ds_topo = xr.DataArray(dem,
                            coords=dem.coords,
@@ -183,7 +191,7 @@ def plot_elevation(raster_topo: xr.DataArray, range_long=None, range_lat=None):
     ax.set_title('DEM')
     ax.add_feature(cartopy.feature.RIVERS.with_scale('10m'), color=plt.cm.terrain(0.))
     ax.add_feature(cartopy.feature.LAKES.with_scale('10m'), color=plt.cm.terrain(0.))
-    if range_long is not None and range_lat is not None:
-        ax.set_extent([range_long[0], range_long[1], range_lat[0], range_lat[1]])
+    if range_lon is not None and range_lat is not None:
+        ax.set_extent([range_lon[0], range_lon[1], range_lat[0], range_lat[1]])
     ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
     return fig
