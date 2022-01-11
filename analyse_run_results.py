@@ -306,7 +306,7 @@ def plot_predicted_maps_Switzerland(run_id, date, epoch, hour,
         maxi = np.nanmax(output_image.isel(time=hour).get(cosmo_var).__array__())
         vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
         inp.plot(cmap=cmap, ax=ax[0], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
-        pr = cosmo.plot(cmap=cmap, ax=ax[1], transform=crs_cosmo, add_colorbar=False)
+        pr = cosmo.plot(cmap=cmap, ax=ax[1], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
         pred.plot(cmap=cmap, ax=ax[2], transform=crs_cosmo, vmin=vmin, vmax=vmax, add_colorbar=False)
         title_inp = 'COSMO1 blurred data' if cosmoblurred_sample else 'ERA5 reanalysis data'
         ax[0].set_title(title_inp)

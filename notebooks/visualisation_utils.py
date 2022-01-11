@@ -5,6 +5,7 @@ from typing import Union, Tuple
 
 import cartopy
 import cartopy.crs as ccrs
+import cmapy
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -247,7 +248,7 @@ def plot_ERA5_wind_fields_timelapse(start_date, end_date, data_path, plot_path, 
                    save_all=True, append_images=images[1:], duration=300, loop=0)
 
 
-def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
+def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date, cmap='jet'):
     from cartopy.crs import epsg
     crs_cosmo = epsg(21781)
     # Downloading saved inputs
@@ -261,13 +262,14 @@ def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
                                    figsize=(15, 5))
     range_long = (5.8, 10.6)
     range_lat = (45.75, 47.9)
-    vmin = np.min(cosmo.__array__())
-    vmax = np.max(cosmo.__array__())
-    cosmo.plot(cmap='jet', ax=ax2, transform=crs_cosmo, vmin=vmin,
+    mini = np.nanmin(cosmo.__array__())
+    maxi = np.nanmax(cosmo.__array__())
+    vmin, vmax = -max(abs(mini), abs(maxi)), max(abs(mini), abs(maxi))
+    cosmo.plot(cmap=cmap, ax=ax2, transform=crs_cosmo, vmin=vmin,
                vmax=vmax,
                cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
                             "label": "10-meter U-component (m.s-1)"})
-    inputs_surface.plot(cmap='jet', ax=ax1, vmin=vmin,
+    inputs_surface.plot(cmap=cmap, ax=ax1, vmin=vmin,
                         vmax=vmax,
                         cbar_kwargs={"orientation": "horizontal", "shrink": 0.7,
                                      "label": "10-meter U-component (m.s-1)"})
@@ -278,3 +280,21 @@ def plot_ERA5_vs_COSMO1(ERA5_data_path: str, COSMO1_data_path: str, date):
         ax.add_feature(cartopy.feature.BORDERS.with_scale('10m'), color='black')
     fig.tight_layout()
     return fig
+
+
+def change_img_colormap(img, src_colormap: str, dest_colormap: str):
+    src_map = cmapy.cmap(src_colormap)
+    src_map = {i: tuple(x[0]) for i, x in enumerate(src_map)}
+    reverse_src_map = {v: k for k, v in src_map.items()}
+    whites = np.all(img == [255, 255, 255], axis=-1)
+    blacks = np.all(img == [0, 0, 0], axis=-1)
+    img_masked = np.where(~whites[..., None], img, src_map[0])
+    img_masked = np.where(~blacks[..., None], img_masked, src_map[1])
+    img_values = np.apply_along_axis(lambda k: reverse_src_map[tuple(k)], -1, img_masked)
+    img_values = np.reshape(img_values, (img.shape[0], img.shape[1], 1))
+    dest_map = cmapy.cmap(dest_colormap)
+    dest_map = {i: x[0] for i, x in enumerate(dest_map)}
+    img_dest = np.apply_along_axis(lambda k: dest_map[k[0]], -1, img_values)
+    img_unmasked = np.where(~whites[..., None], img_dest, [255, 255, 255])
+    img_unmasked = np.where(~blacks[..., None], img_unmasked, [0, 0, 0])
+    return img_unmasked
