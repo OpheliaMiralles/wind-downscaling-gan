@@ -11,8 +11,9 @@ logs
 checkpoints
 
 # Data files and such
-./data
 data
+# Keep all source files
+!src/**/*.py
 upload_data.py
 tex
 plots

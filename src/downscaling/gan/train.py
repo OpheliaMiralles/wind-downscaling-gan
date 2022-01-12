@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from gan.metrics import wind_speed_weighted_rmse
+from downscaling.gan.metrics import wind_speed_weighted_rmse
 
 generator_losses = [wind_speed_weighted_rmse]
 scaling_factors = [1.]

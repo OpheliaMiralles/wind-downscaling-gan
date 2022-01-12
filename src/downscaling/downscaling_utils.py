@@ -7,14 +7,14 @@ from matplotlib import gridspec
 from matplotlib.colors import LogNorm
 from silence_tensorflow import silence_tensorflow
 
-from data.data_processing import HigherResPlateCarree
+from downscaling.data.data_processing import HigherResPlateCarree
 
 silence_tensorflow()
 
-from data.data_generator import FlexibleNoiseGenerator
-from gan import train, metrics
-from gan.ganbase import GAN
-from gan.models import make_generator, make_discriminator
+from downscaling.data.data_generator import FlexibleNoiseGenerator
+from downscaling.gan import train, metrics
+from downscaling.gan.ganbase import GAN
+from downscaling.gan.models import make_generator, make_discriminator
 
 WEIGHTS_PATH = 'weights-55.ckpt'
 SEQUENCE_LENGTH = 24

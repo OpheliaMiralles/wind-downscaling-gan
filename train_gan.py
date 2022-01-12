@@ -9,11 +9,11 @@ silence_tensorflow()
 import tensorflow as tf
 import tensorflow.keras.callbacks as cb
 import numpy as np
-from data.data_generator import BatchGenerator, NaiveDecoder, LocalFileProvider, S3FileProvider
-from data.data_generator import FlexibleNoiseGenerator
-from gan import train, metrics
-from gan.ganbase import GAN
-from gan.models import make_generator, make_discriminator
+from downscaling.data.data_generator import BatchGenerator, NaiveDecoder, LocalFileProvider, S3FileProvider
+from downscaling.data.data_generator import FlexibleNoiseGenerator
+from downscaling.gan import train, metrics
+from downscaling.gan.ganbase import GAN
+from downscaling.gan.models import make_generator, make_discriminator
 
 DATA_ROOT = Path(os.getenv('DATA_ROOT', './data'))
 PROCESSED_DATA_FOLDER = DATA_ROOT / 'img_prediction_files'
