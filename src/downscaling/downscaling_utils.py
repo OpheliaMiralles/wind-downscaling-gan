@@ -1,10 +1,14 @@
 import cartopy
+import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib import gridspec
 from matplotlib.colors import LogNorm
+
+params = {'legend.fontsize': 'x-large', 'axes.labelsize': 'x-large', 'axes.titlesize': 16, 'xtick.labelsize': 'x-large', 'ytick.labelsize': 'x-large'}
+pylab.rcParams.update(params)
 from silence_tensorflow import silence_tensorflow
 
 from downscaling.data.data_processing import HigherResPlateCarree
