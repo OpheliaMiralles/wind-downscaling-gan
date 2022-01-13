@@ -15,6 +15,7 @@ class HigherResPlateCarree(ccrs.PlateCarree):
     def threshold(self):
         return super().threshold / 100
 
+
 def distance_from_coordinates(z1: Tuple, z2: Tuple):
     """
 
@@ -32,9 +33,10 @@ def distance_from_coordinates(z1: Tuple, z2: Tuple):
     d = 2 * r * np.arcsin(np.sqrt(a))
     return d
 
+
 def process_topographic_variables_file(path_to_file: str):
     path_to_file = pathlib.Path(path_to_file)
-    names = ('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+    names = ('elevation', 'tpi_500',
              'we_derivative', 'sn_derivative',
              'slope', 'aspect')
     if all((path_to_file.parent / f"topo_{name}.nc").exists() for name in names):
@@ -42,20 +44,15 @@ def process_topographic_variables_file(path_to_file: str):
         return
     dem = xr.open_rasterio(path_to_file)
     dem = dem.isel(band=0, drop=True)
+    ind_nans, dem = helpers.fill_na(dem)
     # TPI 500m
     scale_meters = 500
     scale_pixel, res_meters = helpers.scale_to_pixel(scale_meters, dem)
     tpi = topo.tpi(dem, scale_pixel)
     # Gradient
-    gradient = topo.gradient(dem, 1 / 4 * scale_meters, res_meters)
+    gradient = topo.gradient(dem, 1 / 4 * scale_pixel, res_meters)
     # Norm and second the direction of Ridge index
-    vr = topo.valley_ridge(dem, scale_pixel, mode='ridge')
-
-    # Sx
-    def Sx(azimuth=0, radius=500):
-        pass
-
-    variables = (dem, tpi, *vr, *gradient)
+    variables = (dem, tpi, *gradient)
     for data, name in zip(variables, names):
         da = xr.DataArray(data,
                           coords=dem.coords,
@@ -76,6 +73,7 @@ def compute_wind_speed_and_angle(u, v):
     w_speed = np.sqrt(u ** 2 + v ** 2)
     w_angle = np.arctan2(v, u)
     return w_speed, w_angle
+
 
 def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_path: str, DEM_data_path: str,
                  start_date, end_date,
@@ -149,13 +147,13 @@ def process_imgs(path_to_processed_files: str, ERA5_data_path: str, COSMO1_data_
 
 
 def process_imgs_cosmoblurred(path_to_processed_files: str, COSMO1_data_path: str, DEM_data_path: str,
-                                 start_date, end_date,
-                                 topo_variables_included=('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
-                                                          'we_derivative', 'sn_derivative',
-                                                          'slope', 'aspect'),
-                                 cosmo_variables_included=('U_10M', 'V_10M'),
-                                 homemade_variables_included=('e_plus', 'e_minus', 'w_speed', 'w_angle'),
-                                 blurring=7):
+                              start_date, end_date,
+                              topo_variables_included=('elevation', 'tpi_500', 'ridge_index_norm', 'ridge_index_dir',
+                                                       'we_derivative', 'sn_derivative',
+                                                       'slope', 'aspect'),
+                              cosmo_variables_included=('U_10M', 'V_10M'),
+                              homemade_variables_included=('e_plus', 'e_minus', 'w_speed', 'w_angle'),
+                              blurring=7):
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
     print(f'Reading DEM data files')
