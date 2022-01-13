@@ -67,6 +67,7 @@ def build_high_res_template_from_era5(ds_era5: xr.Dataset, range_lon=None, range
 
 
 def get_network():
+    print('Loading network...')
     # Creating GAN
     generator = make_generator(image_size=IMG_SIZE, in_channels=NB_INPUTS,
                                noise_channels=NOISE_CHANNELS, out_channels=NB_OUTPUTS,
@@ -119,6 +120,7 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
                for sy in slices_start_y
                for k in range(ntimeseq)}
     positions = {(i, j, k): index for index, (i, j, k) in enumerate(squares)}
+    print(f'Applying model to {len(positions)} patches')
     tensors = np.stack([im.to_array().to_numpy() for k, im in squares.items()], axis=0)
     tensors = np.transpose(tensors, [0, 2, 3, 4, 1])
     tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
