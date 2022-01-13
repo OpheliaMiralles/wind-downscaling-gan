@@ -5,22 +5,19 @@ import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 import xarray as xr
 from matplotlib import gridspec
 from matplotlib.colors import LogNorm
 
-params = {'legend.fontsize': 'x-large', 'axes.labelsize': 'x-large', 'axes.titlesize': 16, 'xtick.labelsize': 'x-large', 'ytick.labelsize': 'x-large'}
-pylab.rcParams.update(params)
-from silence_tensorflow import silence_tensorflow
-
-from downscaling.data.data_processing import HigherResPlateCarree
-
-silence_tensorflow()
-
 from downscaling.data.data_generator import FlexibleNoiseGenerator
+from downscaling.data.data_processing import HigherResPlateCarree
 from downscaling.gan import train, metrics
 from downscaling.gan.ganbase import GAN
 from downscaling.gan.models import make_generator, make_discriminator
+
+params = {'legend.fontsize': 'x-large', 'axes.labelsize': 'x-large', 'axes.titlesize': 16, 'xtick.labelsize': 'x-large', 'ytick.labelsize': 'x-large'}
+pylab.rcParams.update(params)
 
 WEIGHTS_PATH = (Path(__file__) / '../weights-55.ckpt').resolve()
 SEQUENCE_LENGTH = 24
@@ -120,14 +117,21 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
                for sy in slices_start_y
                for k in range(ntimeseq)}
     positions = {(i, j, k): index for index, (i, j, k) in enumerate(squares)}
-    print(f'Applying model to {len(positions)} patches')
+    print(f'Applying model to {len(squares)} patches')
     tensors = np.stack([im.to_array().to_numpy() for k, im in squares.items()], axis=0)
     tensors = np.transpose(tensors, [0, 2, 3, 4, 1])
     tensors = (tensors - np.nanmean(tensors, axis=(0, 1, 2), keepdims=True)) / np.nanstd(tensors, axis=(0, 1, 2),
                                                                                          keepdims=True)
     gen = network.generator
-    noise = network.noise_generator(bs=tensors.shape[0], channels=NOISE_CHANNELS)
-    predictions = gen.predict([tensors, noise])
+    preds = []
+    group_size = BATCH_SIZE
+    num_groups = tensors.shape[0] // group_size + 1
+    for t in range(num_groups):
+        tensor = tensors[t*group_size:(t+1)*group_size, ...]
+        noise = network.noise_generator(bs=tensor.shape[0], channels=NOISE_CHANNELS)
+        preds.append(gen.predict([tensor, noise]))
+        print(f'Predicted {(t+1)/num_groups:.0%}')
+    predictions = tf.concat(preds, axis=0)
     predicted_squares = {
         (i, j, k): xr.Dataset(
             {v: xr.DataArray(predictions[positions[(i, j, k)], ..., variables_of_interest.index(v)],
