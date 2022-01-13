@@ -22,7 +22,7 @@ from downscaling.gan import train, metrics
 from downscaling.gan.ganbase import GAN
 from downscaling.gan.models import make_generator, make_discriminator
 
-WEIGHTS_PATH = Path(__file__) / '../weights-55.ckpt'
+WEIGHTS_PATH = (Path(__file__) / '../weights-55.ckpt').resolve()
 SEQUENCE_LENGTH = 24
 IMG_SIZE = 96
 BATCH_SIZE = 8

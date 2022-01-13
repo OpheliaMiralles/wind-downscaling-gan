@@ -5,6 +5,8 @@ __pycache__
 .DS_Store
 *.egg-info
 .env
+build
+venv
 
 # Model progress
 logs
