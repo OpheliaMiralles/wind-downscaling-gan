@@ -1,3 +1,6 @@
+from .download_ERA5 import download_ERA5
+from .download_COSMO1 import download_COSMO1
+
 # Patch requests get to avoid connecting for too long to internet
 
 import requests

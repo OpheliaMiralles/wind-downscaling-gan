@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cartopy
 import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt
@@ -20,7 +22,7 @@ from downscaling.gan import train, metrics
 from downscaling.gan.ganbase import GAN
 from downscaling.gan.models import make_generator, make_discriminator
 
-WEIGHTS_PATH = 'weights-55.ckpt'
+WEIGHTS_PATH = Path(__file__) / '../weights-55.ckpt'
 SEQUENCE_LENGTH = 24
 IMG_SIZE = 96
 BATCH_SIZE = 8
@@ -69,14 +71,11 @@ def get_network():
     generator = make_generator(image_size=IMG_SIZE, in_channels=NB_INPUTS,
                                noise_channels=NOISE_CHANNELS, out_channels=NB_OUTPUTS,
                                n_timesteps=SEQUENCE_LENGTH)
-    print(f"Generator: {generator.count_params():,} weights")
     discriminator = make_discriminator(low_res_size=IMG_SIZE, high_res_size=IMG_SIZE,
                                        low_res_channels=NB_INPUTS,
                                        high_res_channels=NB_OUTPUTS, n_timesteps=SEQUENCE_LENGTH)
-    print(f"Discriminator: {discriminator.count_params():,} weights")
     noise_shape = (BATCH_SIZE, SEQUENCE_LENGTH, IMG_SIZE, IMG_SIZE, NOISE_CHANNELS)
     gan = GAN(generator, discriminator, noise_generator=FlexibleNoiseGenerator(noise_shape, std=NOISE_STD))
-    print(f"Total: {gan.generator.count_params() + gan.discriminator.count_params():,} weights")
     gan.compile(generator_optimizer=train.generator_optimizer(),
                 generator_metrics=[metrics.AngularCosineDistance(),
                                    metrics.LogSpectralDistance(),
@@ -90,7 +89,7 @@ def get_network():
     return gan
 
 
-def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset):
+def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset, overlap_factor=0.2):
     lat_coord_hr, lon_coord_hr = [c for c in high_res_template.dims if c.startswith('lat') or c.startswith('y')][0], [c for c in high_res_template.dims if c.startswith('lon') or c.startswith('x')][0]
     time_var_topo = inputs_topo.expand_dims({'time': inputs_era5.time})
     inputs = xr.merge([inputs_era5, time_var_topo])
@@ -101,11 +100,12 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
     variables_of_interest = ['u10', 'v10']
     pixels_lat, pixels_lon, time_window = ds_in.dims[lat_coord_hr], ds_in.dims[lon_coord_hr], ds_in.dims['time']
     ntimeseq = time_window // SEQUENCE_LENGTH
-    ncols, nrows = np.math.ceil(pixels_lon / IMG_SIZE), np.math.ceil(
-        pixels_lat / IMG_SIZE)  # ceil and not floor, we want to cover the whole map
+    # ceil and not floor, we want to cover the whole map
+    min_cols, max_cols = np.math.ceil(pixels_lon / IMG_SIZE), pixels_lon
+    min_rows, max_rows = np.math.ceil(pixels_lat / IMG_SIZE), pixels_lat
+    ncols, nrows = round(min_cols + overlap_factor * (max_cols - min_cols)), round(min_rows + overlap_factor * (max_rows - min_rows))
     ydist, xdist = (pixels_lat - IMG_SIZE) // (nrows - 1), (pixels_lon - IMG_SIZE) // (ncols - 1)
-    leftovers_y, leftovers_x = pixels_lat - ((nrows - 1) * ydist + IMG_SIZE), pixels_lon - (
-            (ncols - 1) * xdist + IMG_SIZE)
+    leftovers_y, leftovers_x = pixels_lat - ((nrows - 1) * ydist + IMG_SIZE), pixels_lon - ((ncols - 1) * xdist + IMG_SIZE)
     x_vec_leftovers, y_vec_leftovers = np.concatenate(
         [[0], np.ones(leftovers_x), np.zeros(ncols - leftovers_x - 1)]).cumsum(), np.concatenate(
         [[0], np.ones(leftovers_y), np.zeros(nrows - leftovers_y - 1)]).cumsum()
@@ -141,11 +141,11 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
     return predicted_data
 
 
-def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range_lat=None):
+def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range_lat=None, overlap_factor=0.2):
     high_res_template = build_high_res_template_from_era5(era5, range_lon=range_lon, range_lat=range_lat)
     inputs_era5 = process_era5(era5, high_res_template)
     inputs_topo = process_topo(raster_topo, high_res_template)
-    prediction = predict(inputs_era5, inputs_topo, high_res_template)
+    prediction = predict(inputs_era5, inputs_topo, high_res_template, overlap_factor=overlap_factor)
     return prediction
 
 
