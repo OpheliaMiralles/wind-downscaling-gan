@@ -18,6 +18,8 @@ upload_data.py
 tex
 plots
 docs
+training
+validation
 results
 models
 *.npy
