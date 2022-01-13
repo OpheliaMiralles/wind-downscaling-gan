@@ -18,6 +18,7 @@ upload_data.py
 tex
 plots
 docs
+notebooks
 training
 validation
 results
