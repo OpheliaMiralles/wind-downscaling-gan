@@ -87,7 +87,7 @@ def get_network():
     return gan
 
 
-def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset, overlap_factor=0.2):
+def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset, overlap_factor=0.1):
     lat_coord_hr, lon_coord_hr = [c for c in high_res_template.dims if c.startswith('lat') or c.startswith('y')][0], [c for c in high_res_template.dims if c.startswith('lon') or c.startswith('x')][0]
     time_var_topo = inputs_topo.expand_dims({'time': inputs_era5.time})
     inputs = xr.merge([inputs_era5, time_var_topo])
@@ -99,16 +99,22 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
     pixels_lat, pixels_lon, time_window = ds_in.dims[lat_coord_hr], ds_in.dims[lon_coord_hr], ds_in.dims['time']
     ntimeseq = time_window // SEQUENCE_LENGTH
     # ceil and not floor, we want to cover the whole map
-    min_cols, max_cols = np.math.ceil(pixels_lon / IMG_SIZE), pixels_lon
-    min_rows, max_rows = np.math.ceil(pixels_lat / IMG_SIZE), pixels_lat
-    ncols, nrows = round(min_cols + overlap_factor * (max_cols - min_cols)), round(min_rows + overlap_factor * (max_rows - min_rows))
+    min_cols, max_cols = np.math.ceil(pixels_lon / IMG_SIZE), pixels_lon - IMG_SIZE
+    if max_cols < min_cols:
+        raise RuntimeError(f'Lon dimension too small: got {pixels_lon} pixels, need at least {IMG_SIZE}')
+    min_rows, max_rows = np.math.ceil(pixels_lat / IMG_SIZE), pixels_lat - IMG_SIZE
+    if max_cols < min_cols:
+        raise RuntimeError(f'Lat dimension too small: got {pixels_lat} pixels, need at least {IMG_SIZE}')
+    assert 0 <= overlap_factor <= 1, 'overlap_factor must be in [0,1] range'
+    ncols = np.math.floor(min_cols + overlap_factor ** 2 * (max_cols - min_cols))
+    nrows = np.math.floor(min_rows + overlap_factor ** 2 * (max_rows - min_rows))
     ydist, xdist = (pixels_lat - IMG_SIZE) // (nrows - 1), (pixels_lon - IMG_SIZE) // (ncols - 1)
     leftovers_y, leftovers_x = pixels_lat - ((nrows - 1) * ydist + IMG_SIZE), pixels_lon - ((ncols - 1) * xdist + IMG_SIZE)
     x_vec_leftovers, y_vec_leftovers = np.concatenate(
         [[0], np.ones(leftovers_x), np.zeros(ncols - leftovers_x - 1)]).cumsum(), np.concatenate(
         [[0], np.ones(leftovers_y), np.zeros(nrows - leftovers_y - 1)]).cumsum()
-    slices_start_x, slices_start_y = [int(i * xdist + x) for (i, x) in zip(range(ncols), x_vec_leftovers)], [
-        int(j * ydist + y) for (j, y) in zip(range(nrows), y_vec_leftovers)]
+    slices_start_x = [int(i * xdist + x) for (i, x) in zip(range(ncols), x_vec_leftovers)]
+    slices_start_y = [int(j * ydist + y) for (j, y) in zip(range(nrows), y_vec_leftovers)]
     squares = {(sx, sy, k): ds_in.isel({"time": slice(k * SEQUENCE_LENGTH, (k + 1) * SEQUENCE_LENGTH),
                                         lon_coord_hr: slice(sx, sx + IMG_SIZE),
                                         lat_coord_hr: slice(sy + IMG_SIZE - 1, sy - 1, -1) if sy != 0 else slice(IMG_SIZE, 0, -1)}
@@ -124,8 +130,8 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
                                                                                          keepdims=True)
     gen = network.generator
     preds = []
-    group_size = BATCH_SIZE
-    num_groups = tensors.shape[0] // group_size + 1
+    group_size = BATCH_SIZE * 2
+    num_groups = np.math.ceil(tensors.shape[0] / group_size)
     for t in range(num_groups):
         tensor = tensors[t*group_size:(t+1)*group_size, ...]
         noise = network.noise_generator(bs=tensor.shape[0], channels=NOISE_CHANNELS)
