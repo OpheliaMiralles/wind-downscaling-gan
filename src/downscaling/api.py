@@ -87,7 +87,7 @@ def get_network():
     return gan
 
 
-def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset, overlap_factor=0.1):
+def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template: xr.Dataset, overlap_factor=0.05):
     lat_coord_hr, lon_coord_hr = [c for c in high_res_template.dims if c.startswith('lat') or c.startswith('y')][0], [c for c in high_res_template.dims if c.startswith('lon') or c.startswith('x')][0]
     time_var_topo = inputs_topo.expand_dims({'time': inputs_era5.time})
     inputs = xr.merge([inputs_era5, time_var_topo])
@@ -153,7 +153,7 @@ def predict(inputs_era5: xr.Dataset, inputs_topo: xr.Dataset, high_res_template:
     return predicted_data
 
 
-def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range_lat=None, overlap_factor=0.2):
+def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range_lat=None, overlap_factor=0.05):
     high_res_template = build_high_res_template_from_era5(era5, range_lon=range_lon, range_lat=range_lat)
     inputs_era5 = process_era5(era5, high_res_template)
     inputs_topo = process_topo(raster_topo, high_res_template)
