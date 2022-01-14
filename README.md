@@ -1,4 +1,4 @@
-# Wind Downscaling Project
+# Wind downscaling over Switzerland project (EPFL/UNIBE)
 
 ## Datasets: 
 
@@ -29,3 +29,33 @@ freely available at: https://cds.climate.copernicus.eu/cdsapp#!/search?type=data
    * code: https://github.com/federhub/ST_DeepLearning
 * Robert er al., 2012: Spatial prediction of monthly wind speeds in complex terrain with adaptive general regression neural networks
    * paper:  https://doi.org/10.1002/joc.3550
+  
+## Usage
+
+### Prerequisites 
+
+* Conda environment
+* Get a Copernicus API key from: https://cds.climate.copernicus.eu/api-how-to
+  * create a file at \$HOME/.cdsapirc with the required UID and key
+  
+### Installing dependencies
+
+```bash
+conda install -y -c conda-forge gdal tensorflow xarray numpy=1.19.5 pandas pysftp cdsapi elevation rasterio dask python-dotenv
+```
+Install this package:
+```bash
+pip install -U git+https://github.com/OpheliaMiralles/wind-downscaling-gan.git
+```
+
+### Downscaling winds
+* Download ERA5 low-resolution winds for a specific area and time range using the function `download_ERA5` from the `downscaling.data` package
+* Download DEM data, for example using: 
+```bash
+eio --product SRTM3 clip -o {dem_data_dest_folder} --bounds -4.96 42.2 8.3 51.3
+```
+* Downscale wind fields for a specific date and area of interest:
+```bash
+downscale --era {ERA5_data_folder} --dem {dem_raster.tif} --date 20160401 --lon="-1:3" --lat 48:50 -o downscaled_winds.nc
+```
+For a more hands on approach, you can also use the following python notebook https://github.com/OpheliaMiralles/wind-downscaling-gan/blob/master/src/downscaling/wind_downscaling.ipynb where visual representation of the downscaled maps is provided.
