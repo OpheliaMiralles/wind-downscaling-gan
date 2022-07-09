@@ -6,12 +6,12 @@ from tensorflow.keras import Model
 
 
 class GAN(Model):
-    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3, *args,
-                 **kwargs):
+    def __init__(self, generator: Model, discriminator: Model, noise_generator, n_critic=3, reconstruction_loss=None, *args, **kwargs):
         super(GAN, self).__init__(*args, **kwargs)
         self.generator = generator
         self.discriminator = discriminator
         self.noise_generator = noise_generator
+        self.reconstruction_loss = reconstruction_loss
         self._steps_per_execution = tf.convert_to_tensor(1)
         self._n_critic = n_critic
 
@@ -53,6 +53,10 @@ class GAN(Model):
             fake_high_res_score = self.discriminator([low_res, fake_high_res], training=True)
             gen_disc_loss = -tf.reduce_mean(fake_high_res_score)  # disc score for fake outputs
             gen_loss = gen_disc_loss
+            reco_loss = None
+            if self.reconstruction_loss is not None:
+                reco_loss = self.reconstruction_loss(low_res[..., :2], fake_high_res)
+                gen_loss = gen_loss + reco_loss
         gen_grads = gen_tape.gradient(gen_loss, self.generator.trainable_weights)
         self.generator.optimizer.apply_gradients(zip(gen_grads, self.generator.trainable_weights))
 
@@ -68,8 +72,10 @@ class GAN(Model):
         self.compiled_metrics.update_state(high_res_score, fake_high_res_score, sample_weight)
 
         # Collect metrics to return
-        return_metrics = {'d_loss': disc_loss,
-                          'g_loss': gen_loss,
+        return_metrics = {'g_loss': gen_loss,
+                          'g_disc_loss': gen_disc_loss,
+                          'g_reco_loss': reco_loss,
+                          'd_loss': disc_loss,
                           'd_gradient_pen': tf.reduce_mean(gradients_image),
                           'g_gradient_param': tf.reduce_mean([tf.reduce_mean(g ** 2) for g in gen_grads]),
                           'd_gradient_param': tf.reduce_mean([tf.reduce_mean(g ** 2) for g in grads_parameters])}

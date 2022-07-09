@@ -1,23 +1,19 @@
-import shutil
-from pathlib import Path
-
 import tensorflow as tf
-from tensorflow.keras import layers, losses
-from tensorflow.keras.layers import LeakyReLU, BatchNormalization
-from tensorflow.keras.models import Model
-from tensorflow.python.keras import Sequential
-from tensorflow.python.keras.layers import TimeDistributed
+import tensorflow.keras.layers as kl
+from tensorflow.keras import losses
+from tensorflow.keras.models import Model, Sequential
+from tensorflow_addons.layers import SpectralNormalization
+
+from downscaling.gan.metrics import opposite_cosine_similarity
+from downscaling.tf_utils import img_size, channels
 
 
 class AutoEncoder(Sequential):
-    def __init__(self, nb_channels_in, nb_channels_out, img_size, time_steps):
-        interm1, interm2 = np.linspace(nb_channels_out, nb_channels_in, 4, dtype=int)[1:3]
-        self.nb_channels_in = nb_channels_in
-        self.nb_channels_out = nb_channels_out
+    def __init__(self, img_size, time_steps, latent_dimension, batch_size):
+        self.latent_dimension = latent_dimension
         self.img_size = img_size
         self.time_steps = time_steps
-        self.interm1 = interm1
-        self.interm2 = interm2
+        self.batch_size = batch_size
         encoder = self.make_encoder()
         decoder = self.make_decoder()
         super(AutoEncoder, self).__init__([encoder, decoder], name='autoencoder')
@@ -25,45 +21,45 @@ class AutoEncoder(Sequential):
         self.decoder = decoder
 
     def make_encoder(self):
-        all_inputs = layers.Input(shape=(self.time_steps, self.img_size, self.img_size, self.nb_channels_in),
-                                  name='all_inputs')
-        x = TimeDistributed(layers.Conv2D(8 * self.nb_channels_in, (3, 3), activation=LeakyReLU(0.2), padding='same'))(
-            all_inputs)
-        x = TimeDistributed(BatchNormalization())(x)
-        x = TimeDistributed(layers.Conv2D(2 * self.nb_channels_in, (3, 3), activation=LeakyReLU(0.2), padding='same'))(
-            x)
-        x = TimeDistributed(BatchNormalization())(x)
-        x = TimeDistributed(layers.Conv2D(self.interm1, (3, 3), activation=LeakyReLU(0.2), padding='same'))(x)
-        x = TimeDistributed(BatchNormalization())(x)
-        out = TimeDistributed(layers.Conv2D(self.nb_channels_out, (3, 3), activation=LeakyReLU(0.2), padding='same'),
-                              name='reduced_inputs')(x)
-        return Model(inputs=all_inputs, outputs=out, name='encoder')
+        input_layer = kl.Input(shape=(self.time_steps, self.img_size, self.img_size, 2), name='all_inputs')
+        x = input_layer
+        while img_size(x) >= 7:
+            x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
+            x = kl.TimeDistributed(
+                SpectralNormalization(kl.Conv2D(channels(x) * 2, (5, 5), strides=3, activation=kl.LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
+            x = kl.LayerNormalization()(x)
+        x = kl.TimeDistributed(kl.Flatten())(x)
+        if x.shape[-1] > 2 * self.latent_dimension:
+            middle = (x.shape[-1] + self.latent_dimension) // 2
+            x = kl.TimeDistributed(kl.Dense(middle))(x)
+        out = kl.TimeDistributed(kl.Dense(self.latent_dimension, activation='linear', name='reduced_inputs'))(x)
+        return Model(inputs=input_layer, outputs=out, name='encoder')
 
     def make_decoder(self):
-        reduced_inputs = layers.Input(shape=(self.time_steps, self.img_size, self.img_size, self.nb_channels_out),
-                                      name='reduced_inputs')
-        x = TimeDistributed(layers.Conv2D(self.interm1, (3, 3), activation=LeakyReLU(0.2), padding='same'))(
-            reduced_inputs)
-        x = TimeDistributed(BatchNormalization())(x)
-        x = TimeDistributed(layers.Conv2D(self.interm2, (3, 3), activation=LeakyReLU(0.2), padding='same'))(x)
-        x = TimeDistributed(BatchNormalization())(x)
-        out = TimeDistributed(layers.Conv2D(self.nb_channels_in, (3, 3), activation=LeakyReLU(0.2), padding='same'),
-                              name='predicted_inputs')(x)
+        reduced_inputs = kl.Input(shape=(self.time_steps, self.latent_dimension), name='reduced_inputs')
+        x = kl.TimeDistributed(kl.Dense(self.latent_dimension * 6, activation='linear'))(reduced_inputs)
+        x = kl.TimeDistributed(kl.Dense(self.latent_dimension * 12, activation='linear'))(x)
+        x = tf.reshape(x, [-1, self.time_steps, 6, 6, self.latent_dimension // 3])
+        while img_size(x) < self.img_size // 2:
+            x = kl.TimeDistributed(kl.UpSampling2D(size=(2, 2), interpolation='bilinear'))(x)
+            new_channels = channels(x) // 2 if channels(x) >= 4 else 2
+            x = kl.TimeDistributed(
+                kl.Conv2DTranspose(new_channels, (5, 5), padding='same', activation=kl.LeakyReLU(0.2)))(x)
+            x = kl.BatchNormalization()(x)
+        new_channels = channels(x) // 2 if channels(x) >= 4 else 2
+        x = kl.TimeDistributed(kl.Conv2DTranspose(new_channels, (2, 2), strides=2, activation=kl.LeakyReLU(0.2)))(x)
+        out = kl.TimeDistributed(kl.Conv2D(2, (3, 3), padding='same', activation='linear'), name='predicted_inputs')(x)
         return Model(inputs=reduced_inputs, outputs=out, name='decoder')
 
 
-class WeightedMeanSquaredError(losses.Loss):
-    def __init__(self, weights=None, name='weighted_mean_squared_error'):
-        super(WeightedMeanSquaredError, self).__init__(name=name)
-        self.weights = tf.convert_to_tensor(weights) if weights is not None else None
+class WeightedVectorLoss(losses.Loss):
+    def __init__(self, weights=None, name='weighted_vector_loss'):
+        super(WeightedVectorLoss, self).__init__(name=name)
+        self.weights = tf.convert_to_tensor(weights) if weights is not None else tf.constant([0.5, 0.5])
 
     def call(self, y_true, y_pred):
         y_pred = tf.convert_to_tensor(y_pred)
         y_true = tf.cast(y_true, y_pred.dtype)
-        if self.weights is not None:
-            weighted_loss = tf.reduce_sum(self.weights * tf.reduce_mean((y_pred - y_true) ** 2, axis=(1, 2, 3)),
-                                          axis=-1)
-        else:
-            weighted_loss = tf.reduce_mean((y_pred - y_true) ** 2, axis=(1, 2, 3, 4))
-        return tf.sqrt(weighted_loss)
-
+        rmse = tf.sqrt(tf.reduce_sum(tf.reduce_mean((y_pred - y_true) ** 2, axis=(1, 2, 3)), axis=-1))
+        ocs = opposite_cosine_similarity(y_true, y_pred)
+        return tf.reduce_sum(tf.stack([rmse, ocs], axis=-1) * self.weights, axis=-1)

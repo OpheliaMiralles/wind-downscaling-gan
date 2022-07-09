@@ -96,8 +96,8 @@ class S3FileProvider(Provider):
 class BatchGenerator(tf.keras.utils.Sequence):
     def __init__(self,
                  input_provider: Provider,
-                 output_provider: Provider,
                  decoder,
+                 output_provider: Provider = None,
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -111,7 +111,7 @@ class BatchGenerator(tf.keras.utils.Sequence):
                  num_workers=1,
                  ):
         self.num_workers = num_workers
-        self._bg = _BatchGenerator(input_provider, output_provider, decoder, start_date, end_date,
+        self._bg = _BatchGenerator(input_provider, decoder, output_provider, start_date, end_date,
                                    sequence_length, patch_length_pixel,
                                    batch_size, transform, input_variables, output_variables)
         if self.num_workers > 1:
@@ -146,8 +146,8 @@ class _BatchGenerator(object):
 
     def __init__(self,
                  input_provider: Provider,
-                 output_provider: Provider,
                  decoder,
+                 output_provider: Provider = None,
                  start_date=None,
                  end_date=None,
                  sequence_length=6,
@@ -167,7 +167,9 @@ class _BatchGenerator(object):
         self.output_variables = list(output_variables)
         self.input_provider = input_provider
         self.output_provider = output_provider
-        dates = set(self.input_provider.available_dates).intersection(self.output_provider.available_dates)
+        dates = set(self.input_provider.available_dates)
+        if self.output_provider is not None:
+            dates = dates.intersection(self.output_provider.available_dates)
         if start_date is not None:
             start_date = pd.to_datetime(start_date)
             dates = [d for d in dates if pd.to_datetime(d) >= start_date]
@@ -194,7 +196,7 @@ class _BatchGenerator(object):
         self.prng = np.random.RandomState(seed=random_seed)
         self.current_date_index = -1
 
-    def get_random_square_sequences_per_day(self, X, Y):
+    def get_random_square_sequences_per_day(self, X, Y=None):
         x_coord, y_coord = 'x_1', 'y_1'
         random_x_coord = np.random.randint(0, X.dims[x_coord] + 1 - self.patch_length_pixel)
         random_y_coord = np.random.randint(0, X.dims[y_coord] + 1 - self.patch_length_pixel)
@@ -214,25 +216,47 @@ class _BatchGenerator(object):
                 to_stack.append(patch[v].to_numpy())
             return np.stack(to_stack, axis=-1)
 
-        return crop_to_array(X, self.input_variables), crop_to_array(Y, self.output_variables)
+        if Y is not None:
+            return crop_to_array(X, self.input_variables), crop_to_array(Y, self.output_variables)
+        else:
+            return crop_to_array(X, self.input_variables)
 
-    def generate(self, date):
+    def generate_input_and_output_batches(self, date):
         with self.input_provider.provide(date) as input_path, \
                 self.output_provider.provide(date) as output_path:
             input = xr.open_dataset(input_path)
             output = xr.open_dataset(output_path)
+        input_batch = []
+        output_batch = []
+        for b in range(self.batch_size):
+            X, Y = self.get_random_square_sequences_per_day(input, output)
+            X = self.decoder(X)
+            if self.insert_random_img_transforms:
+                X, Y = self.transform_sequence(X, Y)
+            input_batch.append(X)
+            output_batch.append(Y)
+        in_batch = np.stack(input_batch, axis=0)
+        out_batch = np.stack(output_batch, axis=0)
+        return (in_batch, out_batch)
+
+    def generate_input_batch_only(self, date):
+        with self.input_provider.provide(date) as input_path:
+            input = xr.open_dataset(input_path)
             input_batch = []
-            output_batch = []
             for b in range(self.batch_size):
-                X, Y = self.get_random_square_sequences_per_day(input, output)
+                X = self.get_random_square_sequences_per_day(input)
                 X = self.decoder(X)
                 if self.insert_random_img_transforms:
-                    X, Y = self.transform_sequence(X, Y)
+                    X = self.transform_sequence(X)
                 input_batch.append(X)
-                output_batch.append(Y)
             in_batch = np.stack(input_batch, axis=0)
-            out_batch = np.stack(output_batch, axis=0)
-            return (in_batch, out_batch)
+            return in_batch
+
+    def generate(self, date):
+        if self.output_provider is not None:
+            return self.generate_input_and_output_batches(date)
+        else:
+            return self.generate_input_batch_only(date)
 
     def __len__(self):
         return len(self.dates)
@@ -244,20 +268,26 @@ class _BatchGenerator(object):
         date = self.next_date()
         return self.generate(date)
 
-    def transform_sequence(self, X, Y):
+    def transform_sequence(self, X, Y=None):
         # mirror
         if bool(self.prng.randint(2)):
             X = np.flip(X, axis=1)
-            Y = np.flip(Y, axis=1)
+            if Y is not None:
+                Y = np.flip(Y, axis=1)
         if bool(self.prng.randint(2)):
             X = np.flip(X, axis=2)
-            Y = np.flip(Y, axis=2)
+            if Y is not None:
+                Y = np.flip(Y, axis=2)
         # rotate
         num_rot = self.prng.randint(4)
         if num_rot > 0:
             X = np.rot90(X, k=num_rot, axes=(1, 2))
-            Y = np.rot90(Y, k=num_rot, axes=(1, 2))
-        return X, Y
+            if Y is not None:
+                Y = np.rot90(Y, k=num_rot, axes=(1, 2))
+        if Y is not None:
+            return X, Y
+        else:
+            return X
 
     def __call__(self):
         return next(self)

@@ -1,3 +1,5 @@
+from typing import Callable
+
 import tensorflow as tf
 
 from downscaling.gan.metrics import wind_speed_weighted_rmse
@@ -8,6 +10,20 @@ scaling_factors = [1.]
 
 def discriminator_loss(real_output, fake_output):
     return -(tf.reduce_mean(real_output) - tf.reduce_mean(fake_output))
+
+
+def discriminator_adversarial_loss(real_output, fake_output):
+    return -(tf.reduce_mean(real_output) - tf.reduce_mean(fake_output))
+
+
+class reconstruction_loss:
+    def __init__(self, feature_extractor: Callable[[tf.Tensor], tf.Tensor], coefficient: float = 1):
+        self.feature_extractor = feature_extractor
+        self.coefficient = coefficient
+
+    def __call__(self, low_res, high_res):
+        delta = self.feature_extractor(low_res) - self.feature_extractor(high_res)
+        return self.coefficient * tf.reduce_mean(tf.sqrt(tf.reduce_sum(delta ** 2, axis=-1)))
 
 
 def generator_loss(real_output, fake_output):

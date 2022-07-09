@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
 import tensorflow_probability as tfp
+from tensorflow.keras.losses import cosine_similarity
 
 
 class discriminator_score_real(tf.keras.metrics.Mean):
@@ -20,6 +21,12 @@ class discriminator_score_fake(tf.keras.metrics.Mean):
 
     def update_state(self, real_output, fake_output, sample_weight=None):
         return super(discriminator_score_fake, self).update_state(fake_output, sample_weight)
+
+
+def encoded_features_l2_distance(a, b):
+    result = (a - b) ** 2
+    result = tf.where(tf.math.is_nan(result), tf.zeros_like(result), result)
+    return tf.sqrt(tf.reduce_mean(result, axis=(1, 2)))
 
 
 def wind_speed_weighted_rmse(real_output, fake_output):
@@ -85,14 +92,21 @@ WindSpeedRMSE = lambda: tfa.metrics.MeanMetricWrapper(wind_speed_rmse, name='ws_
 
 
 def angular_cosine_distance(real_output, fake_output):
-    scalar_prod = tf.reduce_sum(real_output * fake_output, axis=-1)
-    norm_real = tf.norm(real_output, axis=-1)
-    norm_fake = tf.norm(fake_output, axis=-1)
-    angle = tf.math.acos(tf.math.divide_no_nan(scalar_prod,
-                                               norm_fake * norm_real)) / np.pi
-    angle = tf.where(tf.math.is_nan(angle), tf.zeros_like(angle), angle)
-    angle = tf.reduce_mean(angle, axis=(1, 2, 3))
-    return angle
+    cos_sim = cosine_similarity(real_output, fake_output)
+    # sometimes the keras function returns values just above 1 or below -1
+    bounded_cos_sim = tf.clip_by_value(cos_sim, -1, 1)
+    acd = tf.math.acos(bounded_cos_sim) / np.pi
+    acd = tf.reduce_mean(acd, axis=(1, 2, 3))
+    return acd
+
+
+def opposite_cosine_similarity(real_output, fake_output):
+    cos_sim = .5 * (1 + cosine_similarity(real_output, fake_output))
+    result = tf.reduce_mean(cos_sim, axis=(1, 2, 3))
+    return result
+
+
+AngularCosineDistance = lambda: tfa.metrics.MeanMetricWrapper(angular_cosine_distance, name='acd')
 
 
 def cosine_similarity_from_xarray(real_output, fake_output):
@@ -101,9 +115,6 @@ def cosine_similarity_from_xarray(real_output, fake_output):
     norm_fake = np.sqrt(fake_output.u10 ** 2 + fake_output.v10 ** 2)
     cosine_sim = scalar_prod / (norm_real * norm_fake)
     return cosine_sim
-
-
-AngularCosineDistance = lambda: tfa.metrics.MeanMetricWrapper(angular_cosine_distance, name='acd')
 
 
 def log_spectral_distance(real_output, fake_output):
@@ -126,6 +137,18 @@ def log_spectral_distance(real_output, fake_output):
 
 
 LogSpectralDistance = lambda: tfa.metrics.MeanMetricWrapper(log_spectral_distance, name='lsd')
+
+
+def log_spectral_distance_from_xarray(real_output, fake_output):
+    fake_output = fake_output[['u10', 'v10']].to_array()
+    real_output = real_output[['U_10M', 'V_10M']].to_array()
+    epsilon = tf.keras.backend.epsilon()
+    power_spectra_real = np.abs(np.fft.fft2(real_output)) ** 2
+    power_spectra_fake = np.abs(np.fft.fft2(fake_output)) ** 2
+    ratio = np.divide(power_spectra_real + epsilon, power_spectra_fake + epsilon)
+    result = (10 * np.log10(ratio)) ** 2
+    result = np.mean(result, axis=0)
+    return result
 
 
 def ks_stat_on_patch(patch1, patch2):
@@ -159,3 +182,11 @@ def spatially_convolved_ks_stat(real_output, fake_output):
 
 
 SpatialKS = lambda: tfa.metrics.MeanMetricWrapper(spatially_convolved_ks_stat, name='spatial_ks')
+
+
+def rmse_from_xarray(real_output, fake_output):
+    u, v = real_output[..., 0], real_output[..., 1]
+    u_hat, v_hat = fake_output[..., 0], fake_output[..., 1]
+    result = (u - u_hat) ** 2 + (v - v_hat) ** 2
+    rmse = np.sqrt(np.mean(result, axis=(1, 2, 3)))
+    return rmse
