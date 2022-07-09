@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import cartopy
 import matplotlib.pylab as pylab
 import matplotlib.pyplot as plt
 import numpy as np
@@ -162,6 +161,8 @@ def downscale(era5: xr.Dataset, raster_topo: xr.DataArray, range_lon=None, range
 
 
 def plot_wind_fields(ds: xr.Dataset, cmap='bwr', title='', range_lon=None, range_lat=None, high_res_crs=None):
+    import cartopy
+
     fig = plt.figure(constrained_layout=True, figsize=(15, 5))
     gs = gridspec.GridSpec(1, 2, figure=fig)
     axes = []
@@ -197,6 +198,8 @@ def plot_wind_fields(ds: xr.Dataset, cmap='bwr', title='', range_lon=None, range
 
 
 def plot_elevation(raster_topo: xr.DataArray, range_lon=None, range_lat=None):
+    import cartopy
+
     dem = raster_topo.isel(band=0, drop=True)
     ds_topo = xr.DataArray(dem,
                            coords=dem.coords,
