@@ -2,18 +2,22 @@ import os
 import pathlib
 from typing import Tuple
 
-import cartopy.crs as ccrs
+
 import numpy as np
 import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 from topo_descriptors import topo, helpers
 
+try:
+    import cartopy.crs as ccrs
 
-class HigherResPlateCarree(ccrs.PlateCarree):
-    @property
-    def threshold(self):
-        return super().threshold / 100
+    class HigherResPlateCarree(ccrs.PlateCarree):
+        @property
+        def threshold(self):
+            return super().threshold / 100
+except ImportError:
+    HigherResPlateCarree = None
 
 
 def distance_from_coordinates(z1: Tuple, z2: Tuple):
