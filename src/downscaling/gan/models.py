@@ -116,15 +116,18 @@ def make_discriminator(
         x = kl.LayerNormalization()(x)
 
     shortcut = x
+    i = 0
     while img_size(x) >= 4:
         x = kl.TimeDistributed(kl.ZeroPadding2D())(x)
         x = kl.TimeDistributed(
             SpectralNormalization(kl.Conv2D(channels(x) * 2, (7, 7), strides=3,
                                             activation=LeakyReLU(0.2))), name=f'conv_{img_size(x)}')(x)
         x = kl.LayerNormalization()(x)
-    shortcut = shortcut_convolution(shortcut, x, channels(x))
-    # Split connection
-    x = kl.add([x, shortcut])
+        i += 1
+    if i > 1:
+        shortcut = shortcut_convolution(shortcut, x, channels(x))
+        # Split connection
+        x = kl.add([x, shortcut])
 
     while img_size(x) > 2:
         x = kl.TimeDistributed(

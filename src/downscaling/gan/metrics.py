@@ -92,7 +92,7 @@ WindSpeedRMSE = lambda: tfa.metrics.MeanMetricWrapper(wind_speed_rmse, name='ws_
 
 
 def angular_cosine_distance(real_output, fake_output):
-    cos_sim = cosine_similarity(real_output, fake_output)
+    cos_sim = -cosine_similarity(real_output, fake_output)
     # sometimes the keras function returns values just above 1 or below -1
     bounded_cos_sim = tf.clip_by_value(cos_sim, -1, 1)
     acd = tf.math.acos(bounded_cos_sim) / np.pi
@@ -160,11 +160,13 @@ def ks_stat_on_patch(patch1, patch2):
 
 
 @tf.autograph.experimental.do_not_convert
-def spatially_convolved_ks_stat(real_output, fake_output):
+def spatially_convolved_ks_stat(real_output, fake_output, patch_size=None):
     to_concat = []
-    patch_size = fake_output.shape[2] // 10
+    patch_size = patch_size or fake_output.shape[2] // 10
+    i = 0
     for time in range(fake_output.shape[1]):
         for ch in range(fake_output.shape[-1]):
+            print(f'Patch {i}/{fake_output.shape[1]*fake_output.shape[-1]}')
             patch1 = tf.image.extract_patches(real_output[:, time, ..., ch:ch + 1],
                                               sizes=(1, patch_size, patch_size, 1),
                                               strides=(1, 5, 5, 1),
@@ -177,6 +179,7 @@ def spatially_convolved_ks_stat(real_output, fake_output):
                                               padding='VALID')
             ks_stat_for_time_step = ks_stat_on_patch(patch1, patch2)
             to_concat.append(tf.reduce_mean(ks_stat_for_time_step, axis=(1, 2)))
+            i+=1
     mean_ks_stat_img = tf.reduce_mean(to_concat, axis=0)
     return mean_ks_stat_img
 
